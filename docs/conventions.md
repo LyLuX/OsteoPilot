@@ -105,3 +105,28 @@ convertissent pas en instants UTC. Valider les moyens acceptés et le patient
 actif côté serveur dans la transaction ; conserver les totaux des anciens moyens.
 Les nouveaux paiements utilisent une clé idempotente stable lors d’une reprise,
 avec audit dans le même commit et permissions payments.read/payments.create.
+
+## Pagination et icônes de paiement
+
+Utiliser PaginationControls (repris de GreenDesk), via Pagination et usePagination
+dans shared.jsx, pour toute pagination. Transmettre limit à la requête backend ;
+proposer 5, 10 ou 25 éléments et revenir à la page 1 à chaque changement de taille.
+Désactiver les commandes pendant un chargement ou une opération concurrente.
+
+Réutiliser PaymentMethodIcon pour les quatre moyens. Les variantes payment-method--*
+définissent uniquement --payment-method-color à partir des variables --payment-*-color
+du thème. Le composant utilise currentColor et le fond est calculé par color-mix.
+Conserver les formes distinctes, la légende et les libellés accessibles : la couleur
+ne doit pas être le seul moyen de reconnaître un type de paiement.
+
+## Périodes du calendrier
+
+Le mois reste la vue initiale. La semaine commence le lundi et utilise le numéro
+ISO, avec son année ISO aux changements d’année. La vue annuelle présente douze
+cumuls mensuels. Les changements de vue ou de période affichent toute la période
+dans le panneau de paiements ; un clic sur une case détaille le jour ou le mois.
+Le bouton de retour à la période complète conserve la sélection et remet la page à 1.
+Les lectures acceptent un jour seul ou un intervalle inclusif borné à 366 jours.
+Afficher uniquement les moyens acceptés dans les cases et la légende. Les anciens
+moyens désactivés restent inclus dans le total et regroupés sous « Autres » dans
+les cases ; la liste des paiements conserve leur libellé historique.

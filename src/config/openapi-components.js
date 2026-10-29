@@ -125,12 +125,14 @@ export const components = {
     },
     PaymentSummary: {
       type: 'object',
+      description:
+        'Totaux journaliers sur une période inclusive de 366 jours maximum. Les paiements historiques restent inclus même si leur moyen est désormais désactivé.',
       required: ['days', 'acceptedMethods'],
       properties: {
         acceptedMethods: { $ref: '#/components/schemas/PaymentMethods' },
         days: {
           type: 'array',
-          maxItems: 62,
+          maxItems: 366,
           items: {
             type: 'object',
             required: ['date', 'methods', 'totalCents'],

@@ -96,6 +96,8 @@ for (const route of routes) {
       required: true,
       schema: { type: 'string', format: 'uuid' },
     });
+  const paymentPeriodDescription =
+    'Période inclusive de 366 jours maximum, avec from ≤ to. Pour la liste, fournir soit date seule, soit from et to ensemble.';
   if (route.query) {
     const schema = jsonSchema(route.query);
     for (const [name, property] of Object.entries(schema.properties))
@@ -104,6 +106,10 @@ for (const route of routes) {
         in: 'query',
         required: schema.required?.includes(name) || false,
         schema: property,
+        ...(['paymentsList', 'paymentsSummary'].includes(route.action) &&
+        ['date', 'from', 'to'].includes(name)
+          ? { description: paymentPeriodDescription }
+          : {}),
       });
   }
   if (route.method !== 'get') {

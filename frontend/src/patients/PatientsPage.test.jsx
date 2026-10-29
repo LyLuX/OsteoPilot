@@ -212,3 +212,26 @@ test('une réponse ancienne ne remplace pas les résultats de la nouvelle recher
     vi.useRealTimers();
   }
 });
+
+test('taille de page GreenDesk : requête backend et retour à la première page', async () => {
+  mocks.get.mockImplementation(async (_, query) => ({
+    items: [{ ...patient }],
+    pagination: { page: query.page, totalPages: Math.ceil(60 / query.limit), total: 60 },
+  }));
+  show();
+  await screen.findByRole('link', { name: 'Ouvrir' });
+  await userEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+  expect(mocks.get).toHaveBeenLastCalledWith(
+    '/patients',
+    expect.objectContaining({ page: 2, limit: 25 }),
+  );
+  await userEvent.selectOptions(
+    screen.getByRole('combobox', { name: 'Nombre d’éléments par page' }),
+    '5',
+  );
+  expect(mocks.get).toHaveBeenLastCalledWith(
+    '/patients',
+    expect.objectContaining({ page: 1, limit: 5 }),
+  );
+  expect(screen.getByRole('combobox', { name: 'Nombre d’éléments par page' })).toHaveValue('5');
+});

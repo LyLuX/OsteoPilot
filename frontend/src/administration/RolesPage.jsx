@@ -7,14 +7,15 @@ import {
   Panel,
   PageTitle,
   Pagination,
+  usePagination,
   ResourceState,
   useResource,
   useTask,
 } from '../components/shared.jsx';
 export default function RolesPage() {
   const { can, user } = useAuth();
-  const [page, setPage] = useState(1);
-  const resource = useResource('/roles', { page });
+  const { page, setPage, limit, setLimit } = usePagination(25);
+  const resource = useResource('/roles', { page, limit });
   const [editing, setEditing] = useState(undefined);
   const [name, setName] = useState('');
   const task = useTask();
@@ -101,7 +102,15 @@ export default function RolesPage() {
             </article>
           ))}
         </div>
-        <Pagination data={resource.data?.pagination} page={page} setPage={setPage} />
+        <Pagination
+          data={resource.data?.pagination}
+          page={page}
+          setPage={setPage}
+          limit={limit}
+          setLimit={setLimit}
+          disabled={resource.loading || task.busy}
+          itemLabel="rôle(s)"
+        />
       </Panel>
     </>
   );

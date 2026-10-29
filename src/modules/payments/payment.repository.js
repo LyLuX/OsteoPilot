@@ -12,11 +12,12 @@ export class PaymentRepository {
   list(query) {
     return this.models.Payments.findAndCountAll({
       attributes,
-      where: { date: query.date },
+      where: { date: query.date ?? { [Op.between]: [query.from, query.to] } },
       include: [
         { model: this.models.Patients, as: 'patient', attributes: ['id', 'firstName', 'lastName'] },
       ],
       order: [
+        ['date', 'DESC'],
         ['createdAt', 'DESC'],
         ['id', 'ASC'],
       ],

@@ -15,6 +15,18 @@
   --border: #e3e8e5;
   --danger: #b64141;
   --radius: 1rem;
+  --pagination-disabled-background: var(--surface-subtle);
+  --pagination-focus-color: color-mix(in srgb, var(--brand-forest) 25%, transparent);
+  --accent-blue: #235e91;
+  --accent-amber: #8a5900;
+  --accent-purple: #7046a1;
+  --payment-cash-color: var(--brand-forest-dark);
+  --payment-card-color: var(--accent-blue);
+  --payment-cheque-color: var(--accent-amber);
+  --payment-transfer-color: var(--accent-purple);
+  --calendar-selected-start: color-mix(in srgb, var(--brand-forest) 26%, var(--surface));
+  --calendar-selected-end: color-mix(in srgb, var(--brand-leaf) 13%, var(--surface));
+  --calendar-selected-border: var(--brand-forest);
   --bs-body-color: var(--ink);
   --bs-body-bg: var(--brand-mist);
   --bs-border-color: var(--border);
@@ -337,16 +349,6 @@ legend {
   color: var(--muted);
   font-size: 0.8rem;
 }
-.pagination-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  margin-top: 1.5rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
 .record-list article {
   display: flex;
   justify-content: space-between;
@@ -552,9 +554,6 @@ dialog::backdrop {
   color: var(--muted);
   background: var(--surface-subtle);
 }
-.calendar-day[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--brand-leaf) 7%, var(--surface));
-}
 .calendar-day.today .day-number {
   color: var(--surface);
   background: var(--brand-forest);
@@ -562,6 +561,15 @@ dialog::backdrop {
 }
 .calendar-day:hover {
   background: color-mix(in srgb, var(--brand-leaf) 12%, var(--surface));
+}
+.calendar-day[aria-pressed='true'] {
+  background: linear-gradient(145deg, var(--calendar-selected-start), var(--calendar-selected-end));
+  box-shadow: inset 0 0 0 2px var(--calendar-selected-border);
+}
+.calendar-day[aria-pressed='true'] .day-number {
+  background: var(--brand-forest-dark);
+  color: var(--surface);
+  font-weight: 700;
 }
 .calendar-day:focus-visible {
   outline-offset: -3px;
@@ -898,9 +906,6 @@ dialog::backdrop {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.calendar-payment-line abbr {
-  text-decoration: none;
-}
 .calendar-payment-total {
   font-weight: 700;
   border-top: 1px solid var(--border);
@@ -945,4 +950,213 @@ dialog::backdrop {
   .calendar-day {
     padding: 0.4rem;
   }
+}
+
+.pagination-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.pagination-summary {
+  justify-self: start;
+}
+
+.pagination-page-size {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.pagination-page-size .form-select {
+  min-height: 2.75rem;
+  padding-block: 0.2rem;
+  font-size: inherit;
+}
+
+.pagination-direct-access {
+  max-width: 100%;
+  justify-self: center;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  overflow-x: auto;
+  padding: 0.2rem;
+}
+
+.osteopilot-pagination {
+  flex-wrap: nowrap;
+  --bs-pagination-color: var(--brand-forest);
+  --bs-pagination-bg: var(--surface);
+  --bs-pagination-border-color: var(--border);
+  --bs-pagination-hover-color: var(--surface);
+  --bs-pagination-hover-bg: var(--brand-forest);
+  --bs-pagination-hover-border-color: var(--brand-forest);
+  --bs-pagination-focus-color: var(--brand-forest-dark);
+  --bs-pagination-focus-bg: var(--surface-subtle);
+  --bs-pagination-focus-box-shadow: 0 0 0 0.2rem var(--pagination-focus-color);
+  --bs-pagination-active-color: var(--surface);
+  --bs-pagination-active-bg: var(--brand-forest);
+  --bs-pagination-active-border-color: var(--brand-forest);
+  --bs-pagination-disabled-color: var(--muted);
+  --bs-pagination-disabled-bg: var(--pagination-disabled-background);
+  --bs-pagination-disabled-border-color: var(--border);
+}
+
+.osteopilot-pagination .page-link {
+  display: flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  font-size: inherit;
+  letter-spacing: 0;
+}
+
+.osteopilot-pagination .pagination-direction .page-link {
+  width: auto;
+  min-width: 5.5rem;
+  padding-inline: 0.55rem;
+}
+
+.osteopilot-pagination .pagination-gap {
+  color: var(--muted);
+}
+
+@media (max-width: 991.98px) {
+  .pagination-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pagination-direct-access {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
+
+  .osteopilot-pagination {
+    width: max-content;
+    min-width: 100%;
+    justify-content: center;
+  }
+}
+
+.pagination-controls {
+  padding: 1rem 0;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.pagination-page-size .form-select {
+  min-height: 44px;
+}
+.pagination-summary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.payment-method {
+  --payment-icon-size: 1rem;
+  --payment-method-color: var(--muted);
+  --payment-method-background: color-mix(in srgb, var(--payment-method-color) 12%, var(--surface));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--payment-method-color);
+  background: var(--payment-method-background);
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.15rem;
+  flex-shrink: 0;
+}
+.payment-method--cash {
+  --payment-method-color: var(--payment-cash-color);
+}
+.payment-method--card {
+  --payment-method-color: var(--payment-card-color);
+}
+.payment-method--cheque {
+  --payment-method-color: var(--payment-cheque-color);
+}
+.payment-method--transfer {
+  --payment-method-color: var(--payment-transfer-color);
+}
+.payment-method svg {
+  width: var(--payment-icon-size);
+  height: var(--payment-icon-size);
+  display: block;
+  flex-shrink: 0;
+}
+.payment-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+.payment-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.calendar-payment-line .payment-method {
+  --payment-icon-size: 0.875rem;
+  padding-inline: 0.1rem;
+}
+@media (min-width: 600px) {
+  .calendar-payment-line .payment-method {
+    --payment-icon-size: 1rem;
+  }
+}
+
+.calendar-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.calendar-view-switch .btn {
+  min-height: 44px;
+  flex: 1;
+}
+.calendar-view-switch [aria-pressed='true'] {
+  background: var(--brand-forest);
+  color: var(--surface);
+  border-color: var(--brand-forest);
+}
+.calendar-days--year {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.calendar-days--year .day-number {
+  width: auto;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  height: auto;
+  text-transform: capitalize;
+}
+.calendar-days--week .calendar-day {
+  min-height: 180px;
+}
+@media (min-width: 600px) {
+  .calendar-days--year {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .calendar-days--year .calendar-payment-line {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 599px) {
+  .calendar-days--week {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .calendar-weekdays--week {
+    display: none;
+  }
+  .calendar-days--week .calendar-payment-line {
+    font-size: 0.85rem;
+  }
+}
+.calendar-week-day-name {
+  font-size: 0.8rem;
+  color: var(--muted);
 }

@@ -1,6 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
-import { Field, Pagination, ResourceState, useResource, useTask } from '../components/shared.jsx';
+import {
+  Field,
+  Pagination,
+  usePagination,
+  ResourceState,
+  useResource,
+  useTask,
+} from '../components/shared.jsx';
 import { api } from '../api/client.js';
 import { createRequestId } from '../api/request-id.js';
 import { paymentMethods, parseMoney } from './money.js';
@@ -19,8 +26,8 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
   });
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const patients = useResource('/payments/patients', { search: query, page, limit: 20 });
+  const { page, setPage, limit, setLimit } = usePagination(25);
+  const patients = useResource('/payments/patients', { search: query, page, limit });
   useEffect(() => {
     const node = dialog.current;
     node.showModal();
@@ -32,7 +39,7 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
       setPage(1);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [search]);
+  }, [search, setPage]);
   const change = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }));
     key.current = createRequestId();
@@ -124,6 +131,10 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
             </FormControl>
           </div>
           <Pagination
+            limit={limit}
+            setLimit={setLimit}
+            disabled={patients.loading || task.busy}
+            itemLabel="patient(s)"
             data={patients.data?.pagination}
             page={page}
             setPage={(next) => {

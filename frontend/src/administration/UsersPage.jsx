@@ -7,6 +7,7 @@ import {
   Panel,
   PageTitle,
   Pagination,
+  usePagination,
   ResourceState,
   useResource,
   useTask,
@@ -133,9 +134,9 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
 }
 export default function UsersPage() {
   const { can, user } = useAuth();
-  const [page, setPage] = useState(1);
+  const { page, setPage, limit, setLimit } = usePagination(25);
   const [editing, setEditing] = useState(undefined);
-  const resource = useResource('/users', { page });
+  const resource = useResource('/users', { page, limit });
   const roles = useResource('/roles', { limit: 100 });
   return (
     <>
@@ -185,7 +186,15 @@ export default function UsersPage() {
           ))}
         </div>
         {!resource.loading && !resource.data?.items.length && <p>Aucun utilisateur.</p>}
-        <Pagination data={resource.data?.pagination} page={page} setPage={setPage} />
+        <Pagination
+          data={resource.data?.pagination}
+          page={page}
+          setPage={setPage}
+          limit={limit}
+          setLimit={setLimit}
+          disabled={resource.loading}
+          itemLabel="utilisateur(s)"
+        />
       </Panel>
     </>
   );

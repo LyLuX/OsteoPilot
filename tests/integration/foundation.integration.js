@@ -739,7 +739,7 @@ test('paiements : refus des montants invalides, patient inactif, moyen non accep
   await expect(
     payments.create(session.token, session.csrfToken, values, randomUUID()),
   ).rejects.toMatchObject({ status: 422 });
-  await expect(payments.summary({ from: '2026-01-01', to: '2026-12-31' })).rejects.toMatchObject({
+  await expect(payments.summary({ from: '2026-01-01', to: '2027-01-02' })).rejects.toMatchObject({
     status: 422,
   });
   await expect(payments.list({ date: values.date, limit: 101 })).rejects.toMatchObject({
@@ -809,4 +809,51 @@ test('droits paiements : accès HTTP et service refusés, recherche patient mini
   expect(lookup.body.data.items).toEqual([
     { id: patient.id, firstName: patient.firstName, lastName: patient.lastName },
   ]);
+});
+
+test('paiements : périodes inclusives, tri civil, pagination et totaux annuels historiques', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  for (const [date, amountCents] of [
+    ['2024-01-01', 101],
+    ['2024-02-29', 202],
+    ['2024-12-31', 303],
+    ['2025-01-01', 404],
+  ]) {
+    await payments.create(
+      session.token,
+      session.csrfToken,
+      paymentValues(patient.id, { date, amountCents }),
+      randomUUID(),
+    );
+  }
+  await acceptMethod('cash', false);
+  const cookie = 'osteopilot.access=' + session.token;
+  const range = { from: '2024-01-01', to: '2024-12-31' };
+  const first = await request(app)
+    .get('/api/v1/payments')
+    .set('Cookie', cookie)
+    .query({ ...range, limit: 2 });
+  expect(first.status).toBe(200);
+  expect(first.body.data.pagination).toMatchObject({ total: 3, totalPages: 2 });
+  expect(first.body.data.items.map((p) => p.date)).toEqual(['2024-12-31', '2024-02-29']);
+  const second = await payments.list({ ...range, limit: 2, page: 2 });
+  expect(second.items.map((p) => p.date)).toEqual(['2024-01-01']);
+  const annual = await request(app)
+    .get('/api/v1/payments/summary')
+    .set('Cookie', cookie)
+    .query(range);
+  expect(annual.status).toBe(200);
+  expect(annual.body.data.acceptedMethods).not.toContain('cash');
+  expect(annual.body.data.days.reduce((total, d) => total + d.totalCents, 0)).toBe(606);
+  for (const query of [
+    { from: range.from },
+    { ...range, date: '2024-02-29' },
+    { ...range, to: '2025-01-01' },
+    { from: range.to, to: range.from },
+  ]) {
+    const response = await request(app).get('/api/v1/payments').set('Cookie', cookie).query(query);
+    expect(response.status).toBe(422);
+  }
+  await acceptMethod('cash');
 });

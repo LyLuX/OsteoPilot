@@ -9,11 +9,23 @@ export const paymentInput = z
     amountCents: z.number().int().min(1).max(99999999),
   })
   .strict();
-export const paymentQuery = z.object({ date: civilDate, ...paging }).strict();
+const orderedRange = (q) =>
+  q.from <= q.to && (Date.parse(q.to) - Date.parse(q.from)) / 86400000 <= 365;
+export const paymentQuery = z
+  .object({
+    date: civilDate.optional(),
+    from: civilDate.optional(),
+    to: civilDate.optional(),
+    ...paging,
+  })
+  .strict()
+  .refine((q) => (q.date ? !q.from && !q.to : Boolean(q.from && q.to && orderedRange(q))), {
+    path: ['date'],
+  });
 export const paymentSummaryQuery = z
   .object({ from: civilDate, to: civilDate })
   .strict()
-  .refine((q) => q.from <= q.to && (Date.parse(q.to) - Date.parse(q.from)) / 86400000 <= 61, {
+  .refine(orderedRange, {
     path: ['to'],
   });
 export const paymentPatientQuery = z.object({ search: text(100).default(''), ...paging }).strict();

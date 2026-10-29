@@ -1,13 +1,20 @@
 import BootstrapForm from '../components/BootstrapForm.jsx';
 import FilterPanel from '../components/FilterPanel.jsx';
 import { useState } from 'react';
-import { PageTitle, Panel, Pagination, ResourceState, useResource } from '../components/shared.jsx';
+import {
+  PageTitle,
+  Panel,
+  Pagination,
+  usePagination,
+  ResourceState,
+  useResource,
+} from '../components/shared.jsx';
 const blank = { actorId: '', action: '', entity: '', from: '', to: '' };
 export default function HistoryPage() {
   const [filters, setFilters] = useState(blank);
   const [query, setQuery] = useState({});
-  const [page, setPage] = useState(1);
-  const resource = useResource('/history', { ...query, page });
+  const { page, setPage, limit, setLimit } = usePagination(25);
+  const resource = useResource('/history', { ...query, page, limit });
   const change = (key, value) => setFilters({ ...filters, [key]: value });
   return (
     <>
@@ -126,7 +133,14 @@ export default function HistoryPage() {
         {!resource.loading && !resource.data?.items.length && (
           <p className="empty-state">Aucune action pour ces filtres.</p>
         )}
-        <Pagination data={resource.data?.pagination} page={page} setPage={setPage} />
+        <Pagination
+          data={resource.data?.pagination}
+          page={page}
+          setPage={setPage}
+          limit={limit}
+          setLimit={setLimit}
+          disabled={resource.loading}
+        />
       </Panel>
     </>
   );

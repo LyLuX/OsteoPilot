@@ -1,3 +1,4 @@
+import PaginationControls from './PaginationControls.jsx';
 import { useEffect, useId, useState } from 'react';
 import { apiFieldErrors, FormControl } from './BootstrapForm.jsx';
 import { api, errorMessage } from '../api/client.js';
@@ -122,28 +123,24 @@ export function ResourceState({ resource }) {
     </>
   );
 }
-export function Pagination({ data, page, setPage }) {
-  if (!data) return null;
+export function usePagination(initialLimit = 25) {
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(initialLimit);
+  return { page, setPage, limit, setLimit };
+}
+export function Pagination({ data, page, setPage, limit, setLimit, disabled = false, itemLabel }) {
   return (
-    <nav className="pagination-bar" aria-label="Pagination">
-      <button
-        className="btn btn-outline-secondary"
-        disabled={page <= 1}
-        onClick={() => setPage(page - 1)}
-      >
-        Précédent
-      </button>
-      <span>
-        Page {page} sur {data.totalPages} · {data.total} résultat{data.total > 1 ? 's' : ''}
-      </span>
-      <button
-        className="btn btn-outline-secondary"
-        disabled={page >= data.totalPages}
-        onClick={() => setPage(page + 1)}
-      >
-        Suivant
-      </button>
-    </nav>
+    <PaginationControls
+      pagination={data ? { ...data, page, limit } : undefined}
+      limit={limit}
+      onPageChange={setPage}
+      disabled={disabled}
+      itemLabel={itemLabel}
+      onLimitChange={(value) => {
+        setLimit(value);
+        setPage(1);
+      }}
+    />
   );
 }
 export function Panel({ children, className = '' }) {

@@ -58,7 +58,7 @@ test('patient : nom et prénom obligatoires avant la création', async () => {
     </MemoryRouter>,
   );
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la fiche' }));
-  expect(screen.getByLabelText(/^Nom/)).toHaveClass('is-invalid');
+  expect(screen.getByLabelText(/^Nom(?:\s|$)/)).toHaveClass('is-invalid');
   expect(screen.getByLabelText(/^Prénom/)).toHaveClass('is-invalid');
   expect(mocks.post).not.toHaveBeenCalled();
 });
@@ -99,7 +99,7 @@ test('utilisateur : sélection de rôle requise avec un seul message de groupe',
   await user.click(screen.getByRole('button', { name: '+ Créer un utilisateur' }));
   const role = await screen.findByRole('checkbox', { name: 'Lecteur' });
   await user.type(screen.getByLabelText(/^Prénom/), 'Fictif');
-  await user.type(screen.getByLabelText(/^Nom/), 'Exemple');
+  await user.type(screen.getByLabelText(/^Nom(?:\s|$)/), 'Exemple');
   await user.type(screen.getByLabelText(/^Email/), 'test@example.invalid');
   await user.type(screen.getByLabelText(/^Mot de passe initial/), 'Phrase de test sûre 123');
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));

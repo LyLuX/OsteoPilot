@@ -29,7 +29,7 @@ export const routes = [
     permission: 'payments.read',
     query: paymentSummaryQuery,
     action: 'paymentsSummary',
-    summary: 'Totaux journaliers par moyen de paiement sur 62 jours maximum',
+    summary: 'Totaux journaliers par moyen de paiement sur 366 jours maximum',
   },
   {
     method: 'get',
@@ -45,7 +45,7 @@ export const routes = [
     permission: 'payments.read',
     query: paymentQuery,
     action: 'paymentsList',
-    summary: 'Lister les paiements du jour avec pagination',
+    summary: 'Lister les paiements d’un jour ou d’une période avec pagination',
   },
   {
     method: 'post',

@@ -32,5 +32,5 @@ test('historique : composant partagé, validation des dates conservée et applic
   );
   await userEvent.click(screen.getByRole('button', { name: 'Effacer' }));
   expect(screen.getByLabelText('Du (UTC)')).toHaveValue('');
-  expect(mocks.get).toHaveBeenLastCalledWith('/history', { page: 1 });
+  expect(mocks.get).toHaveBeenLastCalledWith('/history', { page: 1, limit: 25 });
 });

@@ -9,6 +9,7 @@ import {
   useResource,
   ResourceState,
   Pagination,
+  usePagination,
   useTask,
   ConfirmDialog,
 } from '../components/shared.jsx';
@@ -16,7 +17,7 @@ export default function PatientsPage() {
   const { can } = useAuth();
   const task = useTask();
   const [selected, setSelected] = useState(null);
-  const [page, setPage] = useState(1);
+  const { page, setPage, limit, setLimit } = usePagination(25);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState('all');
@@ -29,14 +30,14 @@ export default function PatientsPage() {
       setPage(1);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [search, query]);
+  }, [search, query, setPage]);
   const resource = useResource('/patients', {
     page,
     search: query,
     archived,
     sort,
     direction,
-    limit: 25,
+    limit,
   });
   return (
     <>
@@ -171,7 +172,15 @@ export default function PatientsPage() {
             </tbody>
           </table>
         )}
-        <Pagination data={resource.data?.pagination} page={page} setPage={setPage} />
+        <Pagination
+          data={resource.data?.pagination}
+          page={page}
+          setPage={setPage}
+          limit={limit}
+          setLimit={setLimit}
+          disabled={resource.loading || task.busy}
+          itemLabel="patient(s)"
+        />
       </Panel>
       {selected && (
         <ConfirmDialog

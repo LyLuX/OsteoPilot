@@ -2,6 +2,25 @@
 
 ## Non publié
 
+## 0.3.0 - 2026-10-29
+
+- [MINOR] Le calendrier propose les vues semaine avec numéro ISO, mois par défaut
+  et année avec cumuls mensuels. Le panneau des paiements suit la période, permet
+  de consulter le détail d’un jour ou d’un mois et conserve sa pagination. Seuls
+  les moyens acceptés apparaissent dans les cases et la légende ; les anciens
+  moyens restent comptés dans les totaux et regroupés sous « Autres ».
+
+- [PATCH] Toutes les paginations utilisent le composant repris de GreenDesk :
+  numéros de pages, ellipses et choix de 5, 10 ou 25 éléments par page, avec
+  retour à la première page lors d’un changement de taille et contrôles accessibles.
+
+- [PATCH] Le calendrier distingue les moyens de paiement par des icônes et
+  couleurs dédiées, avec légende, libellés accessibles et variantes fondées
+  sur des variables CSS réutilisables et color-mix.
+
+- [PATCH] Le jour sélectionné du calendrier se distingue par un dégradé vert
+  renforcé, un contour intérieur et un numéro contrasté, y compris au survol.
+
 ## 0.2.0 - 2026-10-29
 
 - [PATCH] Les notifications utilisent les Toasts Bootstrap, se ferment après deux
