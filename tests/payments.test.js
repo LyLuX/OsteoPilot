@@ -3,6 +3,8 @@ import {
   paymentInput,
   paymentSummaryQuery,
   paymentQuery,
+  paymentDepositInput,
+  publicPayment,
 } from '../src/modules/payments/payment.validator.js';
 const input = {
   patientId: '4a9fb270-9222-4e80-bf91-408c00df25a2',
@@ -53,4 +55,31 @@ test('liste et synthèse : année bissextile et filtres exclusifs validés', () 
     { ...range, page: 0 },
   ])
     expect(() => parse(paymentQuery, query)).toThrow();
+});
+
+test('dépôt : booléen et version stricts, projection explicite des seuls moyens éligibles', () => {
+  expect(parse(paymentDepositInput, { bankDeposited: true, version: 1 })).toEqual({
+    bankDeposited: true,
+    version: 1,
+  });
+  for (const values of [
+    { bankDeposited: 'true', version: 1 },
+    { bankDeposited: true, version: 0 },
+    { bankDeposited: true, version: 1.5 },
+    { bankDeposited: true, version: 4294967295 },
+    { bankDeposited: true, version: 1, amountCents: 50 },
+    { version: 1 },
+  ])
+    expect(() => parse(paymentDepositInput, values)).toThrow();
+  for (const method of ['cash', 'cheque'])
+    expect(
+      publicPayment({ ...input, method, bankDeposited: true, version: 2, createdBy: 'privé' }),
+    ).toMatchObject({ bankDeposited: true, version: 2 });
+  for (const method of ['card', 'transfer'])
+    expect(publicPayment({ ...input, method, bankDeposited: false, version: 1 })).toMatchObject({
+      bankDeposited: null,
+      version: 1,
+    });
+  expect(publicPayment(input)).not.toHaveProperty('createdBy');
+  expect(() => parse(paymentInput, { ...input, bankDeposited: true })).toThrow();
 });

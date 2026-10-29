@@ -70,7 +70,13 @@ test('migration des règlements depuis le schéma initial : informations du cabi
   await db.sequelize.transaction((transaction) =>
     qi.bulkDelete(
       'SequelizeMeta',
-      { name: ['202610290002-settings-payment-methods.js', '202610290003-payments.js'] },
+      {
+        name: [
+          '202610290002-settings-payment-methods.js',
+          '202610290003-payments.js',
+          '202610290004-payment-bank-deposits.js',
+        ],
+      },
       { transaction },
     ),
   );
@@ -856,4 +862,209 @@ test('paiements : périodes inclusives, tri civil, pagination et totaux annuels 
     expect(response.status).toBe(422);
   }
   await acceptMethod('cash');
+});
+
+test('dépôt banque : espèces et chèques, aller-retour audité, lecture et totaux inchangés', async () => {
+  const patient = await paymentPatient();
+  for (const method of ['cash', 'cheque']) {
+    await acceptMethod(method);
+    const row = await payments.create(
+      session.token,
+      session.csrfToken,
+      paymentValues(patient.id, { method, date: '2025-06-15' }),
+      randomUUID(),
+    );
+    expect(row).toMatchObject({ bankDeposited: false, version: 1 });
+    const before = await payments.summary({ from: row.date, to: row.date });
+    // Un ancien moyen désactivé reste gérable, sans dépendre du paramétrage actuel.
+    await acceptMethod(method, false);
+    const send = (body) =>
+      request(app)
+        .patch('/api/v1/payments/' + row.id + '/bank-deposit')
+        .set('Origin', config.publicUrl)
+        .set('Cookie', 'osteopilot.access=' + session.token)
+        .set('X-CSRF-Token', session.csrfToken)
+        .send(body);
+    const mark = await send({ bankDeposited: true, version: 1 });
+    expect(mark.status).toBe(200);
+    expect(mark.body.data).toMatchObject({
+      id: row.id,
+      bankDeposited: true,
+      version: 2,
+      amountCents: row.amountCents,
+      date: row.date,
+    });
+    const list = await payments.list({ date: row.date });
+    expect(list.items.find((p) => p.id === row.id)).toMatchObject({
+      bankDeposited: true,
+      version: 2,
+    });
+    expect((await payments.summary({ from: row.date, to: row.date })).days).toEqual(before.days);
+    expect((await send({ bankDeposited: false, version: 1 })).status).toBe(409);
+    const count = await db.models.AuditLogs.count();
+    expect((await send({ bankDeposited: true, version: 2 })).status).toBe(200);
+    expect(await db.models.AuditLogs.count()).toBe(count);
+    const unmark = await send({ bankDeposited: false, version: 2 });
+    expect(unmark.body.data).toMatchObject({ bankDeposited: false, version: 3 });
+    const audits = await db.models.AuditLogs.findAll({
+      where: {
+        entityId: row.id,
+        action: ['payments.bank-deposit.mark', 'payments.bank-deposit.unmark'],
+      },
+    });
+    expect(audits.map((a) => a.action).sort()).toEqual([
+      'payments.bank-deposit.mark',
+      'payments.bank-deposit.unmark',
+    ]);
+    expect(JSON.stringify(audits)).not.toMatch(/amountCents|bankDeposited|firstName|lastName/);
+    await acceptMethod(method);
+  }
+});
+
+test('dépôt banque : refus moyens inéligibles, version, permission, CSRF et UUID', async () => {
+  const patient = await paymentPatient();
+  for (const method of ['card', 'transfer']) {
+    await acceptMethod(method);
+    const row = await payments.create(
+      session.token,
+      session.csrfToken,
+      paymentValues(patient.id, { method }),
+      randomUUID(),
+    );
+    expect(row.bankDeposited).toBeNull();
+    await expect(
+      payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+        bankDeposited: true,
+        version: 1,
+      }),
+    ).rejects.toMatchObject({ status: 422 });
+  }
+  await acceptMethod('cash');
+  const row = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id),
+    randomUUID(),
+  );
+  const reader = await restrictedUser(['payments.read', 'payments.create']);
+  const before = await snapshot();
+  const send = (id, body, token = session.token, csrf = session.csrfToken) =>
+    request(app)
+      .patch('/api/v1/payments/' + id + '/bank-deposit')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + token)
+      .set('X-CSRF-Token', csrf)
+      .send(body);
+  expect(
+    (
+      await send(
+        row.id,
+        { bankDeposited: true, version: 1 },
+        reader.session.token,
+        reader.session.csrfToken,
+      )
+    ).status,
+  ).toBe(403);
+  await expect(
+    payments.setBankDeposit(reader.session.token, reader.session.csrfToken, row.id, {
+      bankDeposited: true,
+      version: 1,
+    }),
+  ).rejects.toMatchObject({ status: 403 });
+  expect(
+    (await send(row.id, { bankDeposited: true, version: 1 }, session.token, 'invalid')).status,
+  ).toBe(403);
+  expect((await send('invalide', { bankDeposited: true, version: 1 })).status).toBe(422);
+  expect((await send(randomUUID(), { bankDeposited: true, version: 1 })).status).toBe(404);
+  for (const body of [
+    { bankDeposited: 'true', version: 1 },
+    { bankDeposited: true, version: 0 },
+    { bankDeposited: true, version: 1, method: 'cash' },
+  ])
+    expect((await send(row.id, body)).status).toBe(422);
+  expect(await snapshot()).toEqual(before);
+  const stored = await db.models.Payments.findByPk(row.id);
+  expect(stored.bankDeposited).toBe(false);
+  expect(stored.version).toBe(1);
+});
+
+test('dépôt banque : concurrence et rollback atomique si l’audit échoue', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const row = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id),
+    randomUUID(),
+  );
+  await patients.setActive(session.token, session.csrfToken, patient.id, {
+    active: false,
+    version: 1,
+  });
+  const results = await Promise.allSettled(
+    [true, true].map((bankDeposited) =>
+      payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+        bankDeposited,
+        version: 1,
+      }),
+    ),
+  );
+  // La première écriture prend le verrou et avance la version ; l’autre ne l’écrase pas.
+  expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+  const rejected = results.filter((result) => result.status === 'rejected');
+  expect(rejected).toHaveLength(1);
+  expect(rejected[0].reason.status).toBe(409);
+  const count = await db.models.AuditLogs.count();
+  jest.spyOn(db.models.AuditLogs, 'create').mockRejectedValueOnce(new Error('Panne audit dépôt'));
+  await expect(
+    payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+      bankDeposited: false,
+      version: 2,
+    }),
+  ).rejects.toThrow('Panne audit dépôt');
+  const stored = await db.models.Payments.findByPk(row.id);
+  expect(stored.bankDeposited).toBe(true);
+  expect(stored.version).toBe(2);
+  expect(await db.models.AuditLogs.count()).toBe(count);
+});
+
+test('migration du dépôt depuis des paiements existants : montants préservés et passage répété sans écrasement', async () => {
+  // DDL autorisés uniquement par le garde et le runner de base éphémère.
+  const qi = db.sequelize.getQueryInterface();
+  const before = await db.models.Payments.findAll({
+    attributes: ['id', 'date', 'method', 'amountCents'],
+    order: [['id', 'ASC']],
+    raw: true,
+  });
+  await qi.removeColumn('Payments', 'bankDeposited');
+  await qi.removeColumn('Payments', 'version');
+  await db.sequelize.transaction((transaction) =>
+    qi.bulkDelete(
+      'SequelizeMeta',
+      { name: '202610290004-payment-bank-deposits.js' },
+      { transaction },
+    ),
+  );
+  await expect(checkSchema(db)).rejects.toMatchObject({ status: 409 });
+  await migrate(db);
+  await checkSchema(db);
+  expect(
+    await db.models.Payments.findAll({
+      attributes: ['id', 'date', 'method', 'amountCents'],
+      order: [['id', 'ASC']],
+      raw: true,
+    }),
+  ).toEqual(before);
+  expect(await db.models.Payments.count({ where: { bankDeposited: false, version: 1 } })).toBe(
+    before.length,
+  );
+  const row = await db.models.Payments.findOne({ where: { method: 'cash' } });
+  await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+    bankDeposited: true,
+    version: 1,
+  });
+  await migrate(db);
+  await row.reload();
+  expect(row.bankDeposited).toBe(true);
+  expect(row.version).toBe(2);
 });

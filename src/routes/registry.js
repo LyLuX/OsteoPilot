@@ -1,5 +1,6 @@
 import {
   paymentInput,
+  paymentDepositInput,
   paymentQuery,
   paymentSummaryQuery,
   paymentPatientQuery,
@@ -23,6 +24,14 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'patch',
+    path: '/payments/:id/bank-deposit',
+    permission: 'payments.deposit',
+    body: paymentDepositInput,
+    action: 'paymentBankDeposit',
+    summary: 'Marquer ou annuler le dépôt en banque d’un paiement espèces ou chèque, avec version',
+  },
   {
     method: 'get',
     path: '/payments/summary',

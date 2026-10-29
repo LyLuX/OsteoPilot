@@ -2,6 +2,21 @@
 
 ## Non publié
 
+## 0.4.0 - 2026-10-29
+
+- [MINOR] Les paiements en espèces et par chèque disposent d’un statut de dépôt
+  en banque, modifiable et réversible depuis leur liste avec le droit dédié
+  payments.deposit, contrôle de version et audit atomique. Les totaux encaissés
+  restent inchangés ; les paiements existants sont initialisés « À déposer ».
+
+- [PATCH] Le panneau des paiements suit immédiatement la case sélectionnée lors
+  des changements de vue et de période. Les anciens totaux et listes sont masqués
+  pendant le chargement et les réponses dépassées ne remplacent pas la sélection.
+
+- [PATCH] Le calendrier est plus compact : petits boutons de sélection regroupés
+  dans l’en-tête, espacements verticaux réduits et hauteur minimale des cases
+  adaptée, avec cibles tactiles conservées.
+
 ## 0.3.0 - 2026-10-29
 
 - [MINOR] Le calendrier propose les vues semaine avec numéro ISO, mois par défaut

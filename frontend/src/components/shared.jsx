@@ -66,15 +66,16 @@ export function useTask() {
 export function useResource(path, params = {}, enabled = true) {
   const notify = useNotifications();
   const encoded = JSON.stringify(params);
-  const [data, setData] = useState(null);
+  const [snapshot, setSnapshot] = useState({ data: null, key: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
+  const requestKey = JSON.stringify([path, encoded, revision, enabled]);
   useEffect(() => {
     let active = true;
     if (!enabled) {
-      setData(null);
+      setSnapshot({ data: null, key: requestKey });
       setLoading(false);
       setError('');
       return undefined;
@@ -85,7 +86,7 @@ export function useResource(path, params = {}, enabled = true) {
     api
       .get(path, JSON.parse(encoded))
       .then((value) => {
-        if (active) setData(value);
+        if (active) setSnapshot({ data: value, key: requestKey });
       })
       .catch((err) => {
         if (active) {
@@ -101,8 +102,15 @@ export function useResource(path, params = {}, enabled = true) {
     return () => {
       active = false;
     };
-  }, [path, encoded, revision, notify, enabled]);
-  return { data, error, fieldErrors, loading, reload: () => setRevision((v) => v + 1) };
+  }, [path, encoded, revision, notify, enabled, requestKey]);
+  return {
+    data: snapshot.data,
+    current: snapshot.key === requestKey,
+    error,
+    fieldErrors,
+    loading,
+    reload: () => setRevision((v) => v + 1),
+  };
 }
 export function ResourceState({ resource }) {
   return (

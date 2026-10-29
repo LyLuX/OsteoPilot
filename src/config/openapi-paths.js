@@ -50,7 +50,7 @@ export function responseSchema(action) {
   if (action === 'paymentsSummary') return ref('PaymentSummary');
   if (action === 'paymentsList') return paginated('Payment');
   if (action === 'paymentPatients') return paginated('PaymentPatient');
-  if (action === 'paymentsCreate') return ref('Payment');
+  if (['paymentsCreate', 'paymentBankDeposit'].includes(action)) return ref('Payment');
   if (['login', 'me', 'refresh'].includes(action)) return session;
   if (['patientsList', 'usersList', 'rolesList', 'permissionsList', 'history'].includes(action))
     return paginated(

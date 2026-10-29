@@ -9,6 +9,7 @@ import {
   useResource,
 } from '../components/shared.jsx';
 import PaymentModal from '../payments/PaymentModal.jsx';
+import PaymentDepositControl from '../payments/PaymentDepositControl.jsx';
 import PaymentMethodIcon from '../payments/PaymentMethodIcon.jsx';
 import { paymentMethods, formatMoney } from '../payments/money.js';
 import {
@@ -97,7 +98,11 @@ export default function DashboardPage({ now }) {
     canReadPayments,
   );
   const summaryAvailable =
-    canReadPayments && !summary.loading && !summary.error && Boolean(summary.data);
+    canReadPayments &&
+    summary.current &&
+    !summary.loading &&
+    !summary.error &&
+    Boolean(summary.data);
   const methods = summaryAvailable
     ? paymentMethods.filter((method) => summary.data.acceptedMethods.includes(method.code))
     : [];
@@ -129,7 +134,7 @@ export default function DashboardPage({ now }) {
           ? new Date(selected.getFullYear() + delta, selected.getMonth(), 1)
           : new Date(selected.getFullYear(), selected.getMonth() + delta, 1),
     );
-    setDetail('period');
+    setDetail('cell');
     setPage(1);
   };
   const keydown = (e, date) => {
@@ -182,24 +187,6 @@ export default function DashboardPage({ now }) {
       </PageTitle>
       <div className="dashboard-grid">
         <Panel className="calendar-panel">
-          <div className="calendar-view-switch" role="group" aria-label="Affichage du calendrier">
-            {Object.entries(viewNames).map(([value, name]) => (
-              <button
-                key={value}
-                className="btn btn-outline-secondary"
-                aria-pressed={view === value}
-                onClick={() => {
-                  setView(value);
-                  setDetail('period');
-                  setPage(1);
-                  if (value === 'year')
-                    setSelected(new Date(selected.getFullYear(), selected.getMonth(), 1));
-                }}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
           <div className="calendar-heading">
             <div>
               <h2 aria-live="polite">{periodTitle}</h2>
@@ -209,6 +196,24 @@ export default function DashboardPage({ now }) {
                   {period.to.toLocaleDateString('fr-FR')}
                 </p>
               )}
+            </div>
+            <div className="calendar-view-switch" role="group" aria-label="Affichage du calendrier">
+              {Object.entries(viewNames).map(([value, name]) => (
+                <button
+                  key={value}
+                  className="btn btn-outline-secondary"
+                  aria-pressed={view === value}
+                  onClick={() => {
+                    setView(value);
+                    setDetail('cell');
+                    setPage(1);
+                    if (value === 'year')
+                      setSelected(new Date(selected.getFullYear(), selected.getMonth(), 1));
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
             </div>
             <div className="calendar-controls">
               <button
@@ -349,7 +354,7 @@ export default function DashboardPage({ now }) {
                   </p>
                 )}
                 <ResourceState resource={payments} />
-                {!payments.loading && !payments.error && payments.data && (
+                {payments.current && !payments.loading && !payments.error && payments.data && (
                   <>
                     {payments.data.items.length === 0 ? (
                       <p className="muted">
@@ -377,6 +382,11 @@ export default function DashboardPage({ now }) {
                               </span>
                             </div>
                             <strong>{formatMoney(payment.amountCents)}</strong>
+                            <PaymentDepositControl
+                              payment={payment}
+                              canUpdate={can('payments.deposit')}
+                              onSaved={payments.reload}
+                            />
                           </li>
                         ))}
                       </ul>

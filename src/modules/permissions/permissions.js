@@ -2,6 +2,7 @@ export const permissions = [
   'dashboard.read',
   'payments.read',
   'payments.create',
+  'payments.deposit',
   'patients.read',
   'patients.create',
   'patients.update',

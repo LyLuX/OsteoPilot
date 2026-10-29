@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, vi, test, expect } from 'vitest';
 import DashboardPage from './DashboardPage.jsx';
@@ -9,10 +9,10 @@ const patient = {
   lastName: 'Exemple',
   firstName: 'Fictif',
 };
-const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), can: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), can: vi.fn() }));
 vi.mock('../api/client.js', async (original) => ({
   ...(await original()),
-  api: { get: mocks.get, post: mocks.post },
+  api: { get: mocks.get, post: mocks.post, patch: mocks.patch },
 }));
 let records;
 let acceptedMethods;
@@ -25,6 +25,7 @@ beforeEach(() => {
     if (path === '/payments/summary') {
       const days = new Map();
       for (const record of records) {
+        if (record.date < query.from || record.date > query.to) continue;
         const day = days.get(record.date) || {
           date: record.date,
           methods: { cash: 0, card: 0, cheque: 0, transfer: 0 },
@@ -54,6 +55,11 @@ beforeEach(() => {
         totalPages: Math.max(1, Math.ceil(filtered.length / query.limit)),
       },
     };
+  });
+  mocks.patch.mockImplementation(async (path, values) => {
+    const record = records.find((row) => path === '/payments/' + row.id + '/bank-deposit');
+    Object.assign(record, { bankDeposited: values.bankDeposited, version: values.version + 1 });
+    return { ...record };
   });
   mocks.post.mockImplementation(async (_, values) => {
     const payment = { ...values, id: 'payment-' + records.length };
@@ -227,7 +233,8 @@ test('vues semaine et année : périodes, cumuls mensuels et détails du panneau
   expect(
     screen.getByRole('group', { name: 'Calendrier hebdomadaire' }).querySelectorAll('button'),
   ).toHaveLength(7);
-  expect(screen.getAllByRole('heading', { name: 'Semaine 44 · 2026' })).toHaveLength(2);
+  expect(screen.getByRole('heading', { name: 'Semaine 44 · 2026' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Toute la semaine' }));
   await waitFor(() =>
     expect(mocks.get).toHaveBeenCalledWith('/payments', {
       from: '2026-10-26',
@@ -294,8 +301,8 @@ test('changement de vue et de période : retour à la première page, navigation
   await userEvent.click(screen.getByRole('button', { name: 'Année', exact: true }));
   await waitFor(() =>
     expect(mocks.get).toHaveBeenCalledWith('/payments', {
-      from: '2026-01-01',
-      to: '2026-12-31',
+      from: '2026-10-01',
+      to: '2026-10-31',
       page: 1,
       limit: 10,
     }),
@@ -307,12 +314,12 @@ test('changement de vue et de période : retour à la première page, navigation
       to: '2027-12-31',
     }),
   );
-  expect(screen.getAllByRole('heading', { name: '2027' })).toHaveLength(2);
+  expect(screen.getByRole('heading', { name: '2027' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Année précédente' }));
   await waitFor(() =>
     expect(mocks.get).toHaveBeenLastCalledWith('/payments', {
-      from: '2026-01-01',
-      to: '2026-12-31',
+      from: '2026-10-01',
+      to: '2026-10-31',
       page: 1,
       limit: 10,
     }),
@@ -324,4 +331,109 @@ test('aucun moyen accepté : seulement le total à zéro', async () => {
   const day = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
   await waitFor(() => expect(within(day).getByText(/^0\s*€$/)).toBeInTheDocument());
   expect(day.querySelector('.payment-method')).toBeNull();
+});
+
+test('le panneau suit le mois sélectionné au changement de vue sans clic supplémentaire', async () => {
+  records = [
+    { id: 'a', date: '2026-10-29', method: 'cash', amountCents: 200 },
+    { id: 'b', date: '2026-10-30', method: 'cash', amountCents: 500 },
+    { id: 'c', date: '2026-11-01', method: 'cash', amountCents: 900 },
+  ];
+  show();
+  await screen.findByText(/Total : 2\s*€/);
+  await userEvent.click(screen.getByRole('button', { name: 'Année', exact: true }));
+  expect(await screen.findByText(/Total : 7\s*€/)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'octobre 2026', level: 3 })).toBeInTheDocument();
+  expect(screen.queryByText(/Total : 16\s*€/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Semaine', exact: true }));
+  expect(await screen.findByText(/Total : 0\s*€/)).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: 'jeudi 1 octobre 2026', level: 3 }),
+  ).toBeInTheDocument();
+});
+test('chargement lent : aucun ancien total/liste, réponses dépassées ignorées', async () => {
+  records = [{ id: 'a', date: '2026-10-29', method: 'cash', amountCents: 700 }];
+  const normalGet = mocks.get.getMockImplementation();
+  let resolveSummary, resolveList;
+  mocks.get.mockImplementation((path, query) => {
+    if (path === '/payments/summary' && query.from === '2027-01-01')
+      return new Promise((resolve) => {
+        resolveSummary = resolve;
+      });
+    if (path === '/payments' && query.from === '2027-10-01')
+      return new Promise((resolve) => {
+        resolveList = resolve;
+      });
+    return normalGet(path, query);
+  });
+  show();
+  await screen.findByText(/Total : 7\s*€/);
+  await userEvent.click(screen.getByRole('button', { name: 'Année', exact: true }));
+  await screen.findByRole('list', { name: 'Paiements de la période' });
+  await userEvent.click(screen.getByRole('button', { name: 'Année suivante' }));
+  const panel = screen
+    .getByRole('heading', { name: 'octobre 2027', level: 3 })
+    .closest('.quiet-panel');
+  expect(within(panel).getByText('Total : …')).toBeInTheDocument();
+  expect(within(panel).queryByRole('list')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Année précédente' }));
+  await within(panel).findByText(/Total : 7\s*€/);
+  await act(async () => {
+    resolveSummary({
+      acceptedMethods: ['cash'],
+      days: [
+        {
+          date: '2027-10-29',
+          methods: { cash: 9900, card: 0, cheque: 0, transfer: 0 },
+          totalCents: 9900,
+        },
+      ],
+    });
+    resolveList({
+      items: [
+        {
+          id: 'obsolete',
+          date: '2027-10-29',
+          method: 'cash',
+          amountCents: 9900,
+          patient: { lastName: 'Dépassé', firstName: 'Ancien' },
+        },
+      ],
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    });
+  });
+  expect(within(panel).getByText(/Total : 7\s*€/)).toBeInTheDocument();
+  expect(within(panel).queryByText('Dépassé Ancien')).not.toBeInTheDocument();
+});
+
+test('dépôt depuis le panneau : statut rafraîchi, montant et jour conservés', async () => {
+  records = [
+    {
+      id: 'cash-payment',
+      date: '2026-10-29',
+      method: 'cash',
+      amountCents: 700,
+      bankDeposited: false,
+      version: 1,
+    },
+  ];
+  show();
+  const list = await screen.findByRole('list', { name: 'Paiements du jour' });
+  expect(within(list).getByText('À déposer')).toBeInTheDocument();
+  await userEvent.click(within(list).getByRole('button', { name: 'Marquer comme déposé' }));
+  expect(await screen.findByText('Déposé en banque')).toBeInTheDocument();
+  expect(mocks.patch).toHaveBeenCalledWith('/payments/cash-payment/bank-deposit', {
+    bankDeposited: true,
+    version: 1,
+  });
+  expect(
+    screen.getByRole('heading', { name: 'jeudi 29 octobre 2026', level: 3 }),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Total : 7\s*€/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Annuler le dépôt' }));
+  expect(await screen.findByText('À déposer')).toBeInTheDocument();
+  expect(mocks.patch).toHaveBeenLastCalledWith('/payments/cash-payment/bank-deposit', {
+    bankDeposited: false,
+    version: 2,
+  });
 });

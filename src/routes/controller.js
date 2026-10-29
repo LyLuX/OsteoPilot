@@ -25,6 +25,7 @@ export function createControllers({ auth, patients, administration, payments }) 
       auth.clearCookie(res);
       return result;
     },
+    paymentBankDeposit: (req) => payments.setBankDeposit(token(req), csrf(req), id(req), req.body),
     paymentsList: (req) => payments.list(req.query),
     paymentsSummary: (req) => payments.summary(req.query),
     paymentPatients: (req) => payments.patients(req.query),

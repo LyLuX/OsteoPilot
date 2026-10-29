@@ -108,7 +108,16 @@ export const components = {
     Payment: {
       type: 'object',
       additionalProperties: false,
-      required: ['id', 'patientId', 'date', 'method', 'amountCents', 'createdAt'],
+      required: [
+        'id',
+        'patientId',
+        'date',
+        'method',
+        'amountCents',
+        'createdAt',
+        'bankDeposited',
+        'version',
+      ],
       properties: {
         id: { type: 'string', format: 'uuid' },
         patientId: { type: 'string', format: 'uuid' },
@@ -119,6 +128,18 @@ export const components = {
         },
         method: { type: 'string', enum: paymentMethodCodes },
         amountCents: { type: 'integer', minimum: 1, maximum: 99999999 },
+        bankDeposited: {
+          type: ['boolean', 'null'],
+          description:
+            'Espèces et chèques : false = à déposer, true = déposé en banque. Carte et virement : null (sans objet). Les paiements existants sont initialisés à false sans déduire leur dépôt réel.',
+        },
+        version: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 4294967295,
+          description:
+            'Version à transmettre pour modifier le dépôt. Une version dépassée est refusée (409).',
+        },
         createdAt: { type: 'string', format: 'date-time' },
         patient: { $ref: '#/components/schemas/PaymentPatient' },
       },

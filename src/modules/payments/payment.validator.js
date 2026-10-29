@@ -1,5 +1,9 @@
 import { z, uuid, text, paging } from '../../core/validation.js';
 import { paymentMethodCodes } from '../administration/payment-methods.js';
+export const depositMethods = ['cash', 'cheque'];
+export const paymentDepositInput = z
+  .object({ bankDeposited: z.boolean(), version: z.number().int().min(1).max(4294967294) })
+  .strict();
 const civilDate = z.iso.date().refine((value) => value >= '1000-01-01' && value <= '9999-12-31');
 export const paymentInput = z
   .object({
@@ -36,6 +40,8 @@ export const publicPayment = (row) => ({
   method: row.method,
   amountCents: row.amountCents,
   createdAt: row.createdAt,
+  bankDeposited: depositMethods.includes(row.method) ? (row.bankDeposited ?? false) : null,
+  version: row.version ?? 1,
   ...(row.patient
     ? {
         patient: {

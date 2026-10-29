@@ -1,6 +1,15 @@
 import { Op, fn, col } from 'sequelize';
 import { requireTransaction } from '../../core/database/transaction.js';
-const attributes = ['id', 'patientId', 'date', 'method', 'amountCents', 'createdAt'];
+const attributes = [
+  'id',
+  'patientId',
+  'date',
+  'method',
+  'amountCents',
+  'createdAt',
+  'bankDeposited',
+  'version',
+];
 export class PaymentRepository {
   constructor(db) {
     this.models = db.models;
@@ -8,6 +17,18 @@ export class PaymentRepository {
   create(values, transaction) {
     requireTransaction(transaction);
     return this.models.Payments.create(values, { transaction });
+  }
+  findForUpdate(id, transaction) {
+    requireTransaction(transaction);
+    return this.models.Payments.findByPk(id, {
+      attributes,
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+  }
+  updateDeposit(row, values, transaction) {
+    requireTransaction(transaction);
+    return row.update(values, { transaction });
   }
   list(query) {
     return this.models.Payments.findAndCountAll({

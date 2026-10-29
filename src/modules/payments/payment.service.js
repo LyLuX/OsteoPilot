@@ -1,5 +1,5 @@
 import { AppError, assert } from '../../core/errors.js';
-import { parse, pageResult } from '../../core/validation.js';
+import { parse, pageResult, uuid } from '../../core/validation.js';
 import { digest } from '../auth/auth.service.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { SettingsRepository } from '../administration/settings.repository.js';
@@ -8,6 +8,8 @@ import { IdempotencyRepository } from '../../core/database/idempotency.repositor
 import { PaymentRepository } from './payment.repository.js';
 import {
   paymentInput,
+  paymentDepositInput,
+  depositMethods,
   paymentQuery,
   paymentSummaryQuery,
   paymentPatientQuery,
@@ -61,6 +63,43 @@ export class PaymentService {
       acceptedMethods: settings?.paymentMethods ?? [],
     };
   }
+  async setBankDeposit(token, csrf, id, values) {
+    id = parse(uuid, id);
+    const input = parse(paymentDepositInput, values);
+    return this.auth.write(token, csrf, 'payments.deposit', async (ctx, tx) => {
+      const row = await this.repository.findForUpdate(id, tx);
+      assert(row, 'Paiement introuvable.', 404);
+      assert(
+        depositMethods.includes(row.method),
+        'Le dépôt en banque concerne uniquement les espèces et les chèques.',
+        422,
+      );
+      assert(
+        row.version === input.version,
+        'Ce paiement a changé. La liste doit être actualisée avant de réessayer.',
+        409,
+      );
+      if (row.bankDeposited === input.bankDeposited) return publicPayment(row);
+      await this.repository.updateDeposit(
+        row,
+        { bankDeposited: input.bankDeposited, version: row.version + 1 },
+        tx,
+      );
+      await recordAudit(
+        this.db,
+        {
+          actorId: ctx.user.id,
+          action: input.bankDeposited
+            ? 'payments.bank-deposit.mark'
+            : 'payments.bank-deposit.unmark',
+          entity: 'payment',
+          entityId: row.id,
+        },
+        tx,
+      );
+      return publicPayment(row);
+    });
+  }
   async create(token, csrf, values, key) {
     const input = parse(paymentInput, values);
     assert(
@@ -78,7 +117,7 @@ export class PaymentService {
           'Clé déjà utilisée pour une autre requête.',
           409,
         );
-        return existing.result;
+        return publicPayment(existing.result);
       }
       const settings = await this.settings.find(tx);
       if (!settings?.paymentMethods?.includes(input.method))

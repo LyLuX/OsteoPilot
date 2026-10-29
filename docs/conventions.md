@@ -123,10 +123,23 @@ ne doit pas être le seul moyen de reconnaître un type de paiement.
 
 Le mois reste la vue initiale. La semaine commence le lundi et utilise le numéro
 ISO, avec son année ISO aux changements d’année. La vue annuelle présente douze
-cumuls mensuels. Les changements de vue ou de période affichent toute la période
-dans le panneau de paiements ; un clic sur une case détaille le jour ou le mois.
+cumuls mensuels. Les changements de vue ou de période synchronisent le panneau de paiements avec
+la case sélectionnée : un jour en semaine/mois et un mois en année. Masquer les
+anciens montants et listes dès que la requête change, jusqu’à sa réponse.
 Le bouton de retour à la période complète conserve la sélection et remet la page à 1.
 Les lectures acceptent un jour seul ou un intervalle inclusif borné à 366 jours.
 Afficher uniquement les moyens acceptés dans les cases et la légende. Les anciens
 moyens désactivés restent inclus dans le total et regroupés sous « Autres » dans
 les cases ; la liste des paiements conserve leur libellé historique.
+
+## Dépôt des paiements
+
+Le suivi du dépôt en banque concerne uniquement les espèces et les chèques.
+Les nouveaux paiements et l’historique démarrent « À déposer » ; ce statut est
+à vérifier pour les dépôts réalisés avant l’ajout du suivi. Carte et virement
+renvoient bankDeposited: null. Le statut ne change jamais le montant encaissé,
+la date du paiement ni les totaux du calendrier.
+La permission payments.deposit autorise le changement et son annulation,
+avec contrôle de version, verrou transactionnel et audit atomique minimal.
+Un état inchangé ne crée pas d’audit. En conflit (409), recharger la liste.
+Les rôles personnalisés nécessitent une attribution explicite de ce nouveau droit.
