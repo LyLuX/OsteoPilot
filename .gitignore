@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.tmp/
+*.tmp
+*.csv
+*.sql
+exports/
+uploads/
+patients-local/
+.DS_Store
+*.code-workspace
