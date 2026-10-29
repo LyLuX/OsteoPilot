@@ -1,3 +1,4 @@
+import BootstrapForm from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -20,7 +21,8 @@ function SettingsForm({ settings }) {
   const task = useTask();
   const change = (key, value) => setValues({ ...values, [key]: value });
   return (
-    <form
+    <BootstrapForm
+      errors={task.fieldErrors}
       onSubmit={(e) => {
         e.preventDefault();
         task.run(() => api.put('/settings', values), 'Paramètres enregistrés.');
@@ -68,7 +70,7 @@ function SettingsForm({ settings }) {
         </p>
         {can('settings.update') && <button className="btn btn-primary">Enregistrer</button>}
       </fieldset>
-    </form>
+    </BootstrapForm>
   );
 }
 export default function SettingsPage() {

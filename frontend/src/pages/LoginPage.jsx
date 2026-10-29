@@ -1,8 +1,9 @@
-import metadata from '../../package.json';
+import BootstrapForm from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Alert, Field, useTask } from '../components/shared.jsx';
+import PasswordInput from '../components/PasswordInput.jsx';
 export default function LoginPage() {
   const auth = useAuth();
   const task = useTask();
@@ -11,28 +12,13 @@ export default function LoginPage() {
   if (auth.user) return <Navigate to="/dashboard" replace />;
   return (
     <main className="login-page">
-      <div className="login-intro">
-        <div className="brand">
-          <span className="brand-mark">O</span>OsteoPilot
-        </div>
-        <p className="eyebrow">L’essentiel, à portée de main</p>
-        <h1>
-          Votre cabinet.
-          <br />
-          L’esprit libre.
-        </h1>
-        <p>Un espace simple et sécurisé pour prendre soin de votre patientèle, au quotidien.</p>
-        <span className="intro-note">
-          Pensé pour votre pratique. Accessible sur tous vos écrans.
-        </span>
-      </div>
       <section className="login-card">
         <p className="eyebrow">Bienvenue dans votre espace</p>
-        <h2>Connexion</h2>
-        <p className="muted">Retrouvez votre cabinet en toute confidentialité.</p>
+        <h1>Connexion</h1>
         <Alert>{auth.notice}</Alert>
         <Alert>{task.error}</Alert>
-        <form
+        <BootstrapForm
+          errors={task.fieldErrors}
           onSubmit={(e) => {
             e.preventDefault();
             task.run(() => auth.login(values.email, values.password));
@@ -48,12 +34,11 @@ export default function LoginPage() {
             autoComplete="username"
             maxLength={254}
           />
-          <Field
+          <PasswordInput
             label="Mot de passe"
             name="password"
-            type="password"
             value={values.password}
-            onChange={change}
+            onChange={(e) => change('password', e.target.value)}
             required
             autoComplete="current-password"
             maxLength={72}
@@ -61,13 +46,12 @@ export default function LoginPage() {
           <button className="btn btn-primary w-100" disabled={task.busy}>
             {task.busy ? 'Connexion…' : 'Se connecter →'}
           </button>
-        </form>
+        </BootstrapForm>
         <p className="login-help">
           L’accès est réservé aux utilisateurs autorisés du cabinet. Contactez votre administrateur
           pour obtenir un compte.
         </p>
       </section>
-      <footer>OsteoPilot · {metadata.version}</footer>
     </main>
   );
 }

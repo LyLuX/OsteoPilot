@@ -1,3 +1,4 @@
+import { FormControl } from '../components/BootstrapForm.jsx';
 import { useRef, useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -6,6 +7,7 @@ export default function TransferPage() {
   const { can } = useAuth();
   const task = useTask();
   const [csv, setCsv] = useState('');
+  const [fileError, setFileError] = useState('');
   const [preview, setPreview] = useState(null);
   const [confirm, setConfirm] = useState('');
   const key = useRef(crypto.randomUUID());
@@ -13,18 +15,29 @@ export default function TransferPage() {
   const load = async (file) => {
     setPreview(null);
     setCsv('');
+    setFileError('');
     key.current = crypto.randomUUID();
     if (!file) return;
     if (file.size > 512 * 1024) {
-      task.setError('Le fichier dépasse 512 Kio.');
+      task.setError('');
+      setFileError('Le fichier dépasse 512 Kio.');
       return;
     }
-    await task.run(async () => {
-      const bytes = await file.arrayBuffer();
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const result = await task.run(async () => {
+      let text;
+      try {
+        const bytes = await file.arrayBuffer();
+        text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      } catch {
+        setFileError('Choisissez un fichier CSV encodé en UTF-8.');
+        return false;
+      }
       setCsv(text);
       setPreview(await api.post('/patients/import/preview', { csv: text }));
+      return true;
     });
+    if (result === undefined)
+      setFileError('Le fichier n’a pas pu être validé. Vérifiez le message ci-dessus.');
   };
   const commit = async () => {
     const result = await task.run(
@@ -76,7 +89,9 @@ export default function TransferPage() {
             </p>
             <label className="field">
               <span>Fichier de patientèle</span>
-              <input
+              <FormControl
+                name="csv"
+                error={fileError || task.fieldErrors.csv}
                 ref={fileInput}
                 className="form-control"
                 type="file"

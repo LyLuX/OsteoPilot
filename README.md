@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.1.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.1.1** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel de repérage, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -117,6 +117,35 @@ OpenAPI/Swagger : `/api-docs.json` et `/api-docs` hors production uniquement.
 Swagger sert à la consultation ; les mutations exigent l’origine frontend autorisée.
 Vite refuse un port occupé (strictPort). API sur `127.0.0.1:3008`.
 Aucun lancement automatique des deux serveurs, service Windows ou tâche persistante.
+
+## Accès sur le réseau local
+
+Dans le terminal API, autoriser explicitement l’origine du PC sur le réseau.
+Renseigner son adresse IPv4 locale, visible avec ipconfig :
+
+```powershell
+$lanAddress = Read-Host 'Adresse IPv4 locale du PC (exemple : 192.168.1.20)'
+$env:CORS_ORIGINS = "http://localhost:5174,http://${lanAddress}:5174"
+npm run dev
+```
+
+Dans un autre terminal, depuis la racine OsteoPilot :
+
+```powershell
+npm run dev:lan
+```
+
+Depuis le dossier frontend, la même commande fonctionne directement.
+Ouvrir ensuite http://ADRESSE-IP-DU-PC:5174 depuis un appareil du même réseau.
+Vite écoute sur toutes les interfaces, toujours sur le port 5174 strict ;
+l’API reste sur 127.0.0.1:3008 et les appels passent par le proxy Vite.
+L’origine réseau exacte doit être autorisée pour la connexion et les mutations.
+Pour http://osteopilot.org:5174, ajouter explicitement cette origine à CORS_ORIGINS
+et utiliser cette URL comme APP_PUBLIC_URL. Ces variables désignent le frontend,
+pas l’API sur 3008. Redémarrer l’API après tout changement de configuration.
+Si Windows demande une autorisation réseau pour Node.js, choisir le réseau privé.
+La variable CORS_ORIGINS ci-dessus reste limitée à ce terminal ; pour une configuration
+durable, reporter les origines explicites dans le fichier .env local.
 
 ## Contrôles
 

@@ -29,3 +29,21 @@ un débordement à 320 px. Hauteur tactile des jours de 52 px et largeur disponi
 
 AGENTS.md régit les lots. Modifier OpenAPI, droits et tests avec le contrat.
 Les exemples et données de tests sont fictifs.
+
+## Validation Bootstrap commune
+
+Utiliser BootstrapForm pour chaque formulaire, avec errors={task.fieldErrors}
+pour les mutations et errors={resource.fieldErrors} pour les filtres.
+Field, PasswordInput et FormControl reprennent les états is-invalid,
+invalid-feedback, aria-invalid et aria-describedby. Les erreurs sont affichées
+après soumission ; elles sont réévaluées à la saisie. Le premier champ invalide
+reçoit le focus. Les erreurs globales restent dans Alert.
+
+Les contrôles natifs restent actifs via leur API de validité, mais les bulles
+navigateur sont remplacées par des messages français Bootstrap (noValidate).
+Conserver required, minLength, maxLength, type et pattern adaptés.
+Les règles de groupes ou de dates utilisent validate(form), sans accès SQL.
+Pour un groupe de cases, utiliser un seul FormFeedback et son identifiant partagé.
+Les erreurs 422 de l’API sont associées aux noms de champs ; la validation serveur
+ne doit jamais être retirée au motif qu’un contrôle existe dans l’interface.
+Le fichier CSV utilise également FormControl pour ses erreurs de fichier.

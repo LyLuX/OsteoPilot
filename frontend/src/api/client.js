@@ -32,7 +32,7 @@ export const api = {
   patch: (url, data) => request('patch', url, data),
   put: (url, data) => request('put', url, data),
 };
-export function errorMessage(error) {
+export function errorMessage(error, { includeFields = true } = {}) {
   const message = error.response?.data?.error?.message || 'Connexion impossible. Réessayez.';
   const details = error.response?.data?.error?.details;
   const fields = Array.isArray(details)
@@ -41,7 +41,7 @@ export function errorMessage(error) {
   const retry = error.response?.headers?.['retry-after'];
   return (
     message +
-    (fields.length ? ' Champs : ' + fields.join(', ') + '.' : '') +
+    (includeFields && fields.length ? ' Champs : ' + fields.join(', ') + '.' : '') +
     (retry ? ' Réessayez dans ' + retry + ' secondes.' : '')
   );
 }

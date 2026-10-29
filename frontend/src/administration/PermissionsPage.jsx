@@ -1,3 +1,4 @@
+import BootstrapForm, { FormControl, FormFeedback } from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -15,7 +16,8 @@ function PermissionEditor({ role, permissions, reload }) {
   const task = useTask();
   const protectedRole = role.system || user.roleIds.includes(role.id) || !can('permissions.update');
   return (
-    <form
+    <BootstrapForm
+      errors={task.fieldErrors}
       onSubmit={async (e) => {
         e.preventDefault();
         const result = await task.run(
@@ -38,8 +40,11 @@ function PermissionEditor({ role, permissions, reload }) {
         <div className="permissions-grid">
           {permissions.map((p) => (
             <label className="check-label" key={p.id}>
-              <input
+              <FormControl
                 type="checkbox"
+                name="permissionIds"
+                showFeedback={false}
+                feedbackId="role-permissions-feedback"
                 disabled={!can(p.name)}
                 checked={ids.includes(p.id)}
                 onChange={(e) =>
@@ -50,13 +55,14 @@ function PermissionEditor({ role, permissions, reload }) {
             </label>
           ))}
         </div>
+        <FormFeedback name="permissionIds" id="role-permissions-feedback" />
       </fieldset>
       {!protectedRole && (
         <button className="btn btn-primary" disabled={task.busy}>
           Enregistrer les permissions
         </button>
       )}
-    </form>
+    </BootstrapForm>
   );
 }
 export default function PermissionsPage() {
@@ -84,7 +90,9 @@ export default function PermissionsPage() {
             <ResourceState resource={roles} />
             <label className="field">
               <span>Rôle à consulter</span>
-              <select
+              <FormControl
+                as="select"
+                name="selectedRole"
                 className="form-select"
                 value={roleId}
                 onChange={(e) => setRoleId(e.target.value)}
@@ -95,7 +103,7 @@ export default function PermissionsPage() {
                     {r.name}
                   </option>
                 ))}
-              </select>
+              </FormControl>
             </label>
             {role && (
               <PermissionEditor

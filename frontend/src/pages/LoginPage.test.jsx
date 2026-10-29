@@ -22,3 +22,27 @@ test('connexion avec labels et erreurs françaises', async () => {
     'Adresse email ou mot de passe incorrect.',
   );
 });
+
+test('œil accessible : afficher et masquer sans perdre la saisie ni soumettre', async () => {
+  login.mockClear();
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <LoginPage />
+    </MemoryRouter>,
+  );
+  const input = screen.getByLabelText(/^Mot de passe/);
+  await user.type(input, 'Phrase de test');
+  expect(input).toHaveAttribute('type', 'password');
+  const show = screen.getByRole('button', { name: 'Afficher le mot de passe' });
+  expect(show).toHaveAttribute('aria-pressed', 'false');
+  await user.click(show);
+  expect(input).toHaveAttribute('type', 'text');
+  const hide = screen.getByRole('button', { name: 'Masquer le mot de passe' });
+  expect(hide).toHaveAttribute('aria-pressed', 'true');
+  hide.focus();
+  await user.keyboard(' ');
+  expect(input).toHaveAttribute('type', 'password');
+  expect(input).toHaveValue('Phrase de test');
+  expect(login).not.toHaveBeenCalled();
+});

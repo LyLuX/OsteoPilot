@@ -1,3 +1,4 @@
+import BootstrapForm, { FormControl, FormFeedback } from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -20,7 +21,13 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
     <Panel>
       <h2>{selected ? 'Modifier le compte' : 'Créer un utilisateur'}</h2>
       <Alert>{task.error}</Alert>
-      <form
+      <BootstrapForm
+        errors={task.fieldErrors}
+        validate={(form) =>
+          form.querySelector('[name="roleIds"]:checked')
+            ? {}
+            : { roleIds: 'Sélectionnez au moins un rôle.' }
+        }
         onSubmit={async (e) => {
           e.preventDefault();
           const payload = Object.fromEntries(
@@ -76,14 +83,17 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
           14 caractères minimum, 72 octets maximum. Transmettez le mot de passe initial par un canal
           sécurisé.
         </p>
-        <fieldset>
+        <fieldset name="roleIds" tabIndex={-1} aria-describedby="user-roles-feedback">
           <legend>Rôles</legend>
           {roles
             .filter((r) => !r.system)
             .map((r) => (
               <label className="check-label" key={r.id}>
-                <input
+                <FormControl
                   type="checkbox"
+                  name="roleIds"
+                  showFeedback={false}
+                  feedbackId="user-roles-feedback"
                   checked={values.roleIds.includes(r.id)}
                   onChange={(e) =>
                     change(
@@ -97,10 +107,12 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
                 {r.name}
               </label>
             ))}
+          <FormFeedback name="roleIds" id="user-roles-feedback" />
         </fieldset>
         <label className="check-label">
-          <input
+          <FormControl
             type="checkbox"
+            name="active"
             checked={values.active}
             onChange={(e) => change('active', e.target.checked)}
           />
@@ -110,14 +122,14 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
           Une modification révoque les sessions existantes de cet utilisateur.
         </p>
         <div className="actions">
-          <button className="btn btn-primary" disabled={task.busy || !values.roleIds.length}>
+          <button className="btn btn-primary" disabled={task.busy}>
             Enregistrer
           </button>
           <button type="button" className="btn btn-outline-secondary" onClick={onCancel}>
             Annuler
           </button>
         </div>
-      </form>
+      </BootstrapForm>
     </Panel>
   );
 }

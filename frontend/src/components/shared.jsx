@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { apiFieldErrors, FormControl } from './BootstrapForm.jsx';
 import { api, errorMessage } from '../api/client.js';
 export function Alert({ children, success = false }) {
   return children ? (
@@ -11,44 +12,48 @@ export function Alert({ children, success = false }) {
   ) : null;
 }
 export function Field({ label, name, value, onChange, type = 'text', required = false, ...props }) {
+  const id = useId();
   return (
-    <label className="field">
-      <span>
+    <div className="field">
+      <label htmlFor={id}>
         {label}
         {required ? ' *' : ''}
-      </span>
-      <input
-        className="form-control"
+      </label>
+      <FormControl
+        {...props}
+        id={id}
         name={name}
         value={value ?? ''}
         onChange={(e) => onChange(name, e.target.value)}
         type={type}
         required={required}
-        {...props}
       />
-    </label>
+    </div>
   );
 }
 export function useTask() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const run = async (work, successMessage) => {
     setBusy(true);
     setError('');
     setMessage('');
+    setFieldErrors({});
     try {
       const value = await work();
       if (successMessage) setMessage(successMessage);
       return value;
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorMessage(err, { includeFields: false }));
+      setFieldErrors(apiFieldErrors(err));
       return undefined;
     } finally {
       setBusy(false);
     }
   };
-  return { busy, error, message, run, setError, setMessage };
+  return { busy, error, message, fieldErrors, run, setError, setMessage };
 }
 export function useResource(path, params = {}) {
   const encoded = JSON.stringify(params);
@@ -56,17 +61,22 @@ export function useResource(path, params = {}) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState({});
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError('');
+    setFieldErrors({});
     api
       .get(path, JSON.parse(encoded))
       .then((value) => {
         if (active) setData(value);
       })
       .catch((err) => {
-        if (active) setError(errorMessage(err));
+        if (active) {
+          setError(errorMessage(err, { includeFields: false }));
+          setFieldErrors(apiFieldErrors(err));
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -75,7 +85,7 @@ export function useResource(path, params = {}) {
       active = false;
     };
   }, [path, encoded, revision]);
-  return { data, error, loading, reload: () => setRevision((v) => v + 1) };
+  return { data, error, fieldErrors, loading, reload: () => setRevision((v) => v + 1) };
 }
 export function ResourceState({ resource }) {
   return (

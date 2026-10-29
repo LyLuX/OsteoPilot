@@ -1,3 +1,4 @@
+import BootstrapForm from '../components/BootstrapForm.jsx';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
@@ -32,7 +33,7 @@ function PatientForm({ patient }) {
     if (result) navigate('/patients/' + result.id);
   };
   return (
-    <form onSubmit={save}>
+    <BootstrapForm errors={task.fieldErrors} onSubmit={save}>
       <Alert>{task.error}</Alert>
       <div className="form-grid">
         <Field
@@ -89,7 +90,7 @@ function PatientForm({ patient }) {
           Annuler
         </Link>
       </div>
-    </form>
+    </BootstrapForm>
   );
 }
 function EditForm({ id }) {

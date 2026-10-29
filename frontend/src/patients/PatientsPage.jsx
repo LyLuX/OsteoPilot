@@ -1,3 +1,4 @@
+import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -28,7 +29,8 @@ export default function PatientsPage() {
         )}
       </PageTitle>
       <Panel>
-        <form
+        <BootstrapForm
+          errors={resource.fieldErrors}
           className="filter-bar"
           onSubmit={(e) => {
             e.preventDefault();
@@ -38,7 +40,8 @@ export default function PatientsPage() {
         >
           <label className="field grow">
             <span>Rechercher un patient</span>
-            <input
+            <FormControl
+              name="search"
               type="search"
               className="form-control"
               value={search}
@@ -49,8 +52,10 @@ export default function PatientsPage() {
           </label>
           <label className="field">
             <span>Statut</span>
-            <select
+            <FormControl
+              as="select"
               className="form-select"
+              name="archived"
               value={archived}
               onChange={(e) => {
                 setArchived(e.target.value);
@@ -60,12 +65,14 @@ export default function PatientsPage() {
               <option value="false">Actifs</option>
               <option value="true">Archivés</option>
               <option value="all">Tous</option>
-            </select>
+            </FormControl>
           </label>
           <label className="field">
             <span>Tri</span>
-            <select
+            <FormControl
+              as="select"
               className="form-select"
+              name="sort"
               value={sort}
               onChange={(e) => {
                 setSort(e.target.value);
@@ -75,12 +82,14 @@ export default function PatientsPage() {
               <option value="lastName">Nom</option>
               <option value="firstName">Prénom</option>
               <option value="createdAt">Création</option>
-            </select>
+            </FormControl>
           </label>
           <label className="field">
             <span>Ordre</span>
-            <select
+            <FormControl
+              as="select"
               className="form-select"
+              name="direction"
               value={direction}
               onChange={(e) => {
                 setDirection(e.target.value);
@@ -89,10 +98,10 @@ export default function PatientsPage() {
             >
               <option value="ASC">Croissant</option>
               <option value="DESC">Décroissant</option>
-            </select>
+            </FormControl>
           </label>
           <button className="btn btn-primary">Rechercher</button>
-        </form>
+        </BootstrapForm>
         <ResourceState resource={resource} />
         {!resource.loading && resource.data?.items.length === 0 && (
           <div className="empty-state">

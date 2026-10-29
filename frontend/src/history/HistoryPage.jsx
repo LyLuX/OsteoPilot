@@ -1,3 +1,4 @@
+import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import {
   Field,
@@ -22,7 +23,15 @@ export default function HistoryPage() {
           Actions métier et administratives. Les détails personnels des patients ne sont pas
           enregistrés dans ce journal. Bornes de dates en UTC ; affichage Europe/Paris.
         </p>
-        <form
+        <BootstrapForm
+          errors={resource.fieldErrors}
+          validate={(form) => {
+            const from = form.elements.namedItem('from').value;
+            const to = form.elements.namedItem('to').value;
+            return from && to && from > to
+              ? { to: 'La date de fin doit être égale ou postérieure à la date de début.' }
+              : {};
+          }}
           className="filter-bar"
           onSubmit={(e) => {
             e.preventDefault();
@@ -35,6 +44,7 @@ export default function HistoryPage() {
           <Field
             label="Acteur (UUID utilisateur)"
             name="actorId"
+            pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
             value={filters.actorId}
             onChange={change}
             maxLength={36}
@@ -48,8 +58,10 @@ export default function HistoryPage() {
           />
           <label className="field">
             <span>Type d’entité</span>
-            <select
+            <FormControl
+              as="select"
               className="form-select"
+              name="entity"
               value={filters.entity}
               onChange={(e) => change('entity', e.target.value)}
             >
@@ -57,12 +69,12 @@ export default function HistoryPage() {
               {['patient', 'user', 'role', 'settings', 'session', 'auth'].map((x) => (
                 <option key={x}>{x}</option>
               ))}
-            </select>
+            </FormControl>
           </label>
           <button className="btn btn-primary">Filtrer</button>
           <button
             className="btn btn-outline-secondary"
-            type="button"
+            type="reset"
             onClick={() => {
               setFilters(blank);
               setQuery({});
@@ -71,7 +83,7 @@ export default function HistoryPage() {
           >
             Effacer
           </button>
-        </form>
+        </BootstrapForm>
         <ResourceState resource={resource} />
         <table className="data-table">
           <caption className="visually-hidden">Actions auditées</caption>

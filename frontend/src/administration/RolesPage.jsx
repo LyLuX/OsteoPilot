@@ -1,3 +1,4 @@
+import BootstrapForm from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -37,7 +38,8 @@ export default function RolesPage() {
       <Alert success>{task.message}</Alert>
       {editing !== undefined && (
         <Panel>
-          <form
+          <BootstrapForm
+            errors={task.fieldErrors}
             onSubmit={async (e) => {
               e.preventDefault();
               const result = await task.run(
@@ -74,7 +76,7 @@ export default function RolesPage() {
                 Annuler
               </button>
             </div>
-          </form>
+          </BootstrapForm>
         </Panel>
       )}
       <Panel>

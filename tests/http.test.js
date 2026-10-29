@@ -4,6 +4,7 @@ import { createApp } from '../src/app.js';
 import { createEnvironment } from '../src/config/env.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
 import jwt from 'jsonwebtoken';
+import { version } from '../src/config/version.js';
 const config = createEnvironment({ NODE_ENV: 'test' });
 const auth = {
   authenticate: jest.fn(async () => {
@@ -18,7 +19,7 @@ const app = createApp({ config, services: { auth, patients: {}, administration: 
 test('health minimal et en-têtes', async () => {
   const res = await request(app).get('/health');
   expect(res.status).toBe(200);
-  expect(res.body.data.version).toBe('0.1.0');
+  expect(res.body.data.version).toBe(version);
   expect(res.headers['x-powered-by']).toBeUndefined();
   expect(res.headers['cache-control']).toBe('no-store');
   expect(res.headers['x-content-type-options']).toBe('nosniff');
@@ -71,3 +72,50 @@ test('JWT : algorithme, issuer, audience et expiration', () => {
   ])
     expect(() => service.claims(token)).toThrow();
 });
+
+test.each(['http://localhost:5174', 'http://127.0.0.1:5174', 'http://osteopilot.org:5174'])(
+  'connexion autorisée pour une origine frontend explicite : %s',
+  async (origin) => {
+    const configured = createEnvironment({
+      NODE_ENV: 'test',
+      APP_PUBLIC_URL: 'http://osteopilot.org:5174',
+      CORS_ORIGINS: 'http://localhost:5174,http://127.0.0.1:5174,http://osteopilot.org:5174',
+    });
+    const loginAuth = {
+      login: jest.fn(async () => ({ user: { id: 'test' }, csrfToken: 'test', token: 'test' })),
+      cookie: jest.fn(),
+    };
+    const server = createApp({
+      config: configured,
+      services: { auth: loginAuth, patients: {}, administration: {} },
+    });
+    const response = await request(server)
+      .post('/api/v1/auth/login')
+      .set('Origin', origin)
+      .send({ email: 'test@example.invalid', password: 'test' });
+    expect(response.status).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe(origin);
+    expect(loginAuth.login).toHaveBeenCalledTimes(1);
+  },
+);
+test.each(['http://osteopilot.org.evil.invalid:5174', 'http://osteopilot.org:3008', 'null'])(
+  'origine non autorisée toujours refusée : %s',
+  async (origin) => {
+    const configured = createEnvironment({
+      NODE_ENV: 'test',
+      CORS_ORIGINS: 'http://osteopilot.org:5174',
+    });
+    const loginAuth = { login: jest.fn(), cookie: jest.fn() };
+    const server = createApp({
+      config: configured,
+      services: { auth: loginAuth, patients: {}, administration: {} },
+    });
+    const response = await request(server)
+      .post('/api/v1/auth/login')
+      .set('Origin', origin)
+      .send({ email: 'test@example.invalid', password: 'test' });
+    expect(response.status).toBe(403);
+    expect(loginAuth.login).not.toHaveBeenCalled();
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  },
+);

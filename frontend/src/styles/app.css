@@ -559,25 +559,9 @@ dialog::backdrop {
   display: grid;
   align-content: center;
   gap: 2rem;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 520px;
   margin: auto;
-}
-.login-intro .brand {
-  color: var(--brand-forest);
-  margin-bottom: 2rem;
-}
-.login-intro h1 {
-  font-size: clamp(2.3rem, 5vw, 4rem);
-  line-height: 1.12;
-  margin-bottom: 1.5rem;
-}
-.login-intro > p:not(.eyebrow) {
-  color: var(--muted);
-  max-width: 370px;
-  line-height: 1.8;
-}
-.intro-note {
-  display: none;
 }
 .login-card {
   background: var(--surface);
@@ -586,7 +570,7 @@ dialog::backdrop {
   border: 1px solid var(--border);
   box-shadow: 0 12px 50px color-mix(in srgb, var(--ink) 4%, transparent);
 }
-.login-card h2 {
+.login-card h1 {
   font-size: 1.7rem;
   margin-bottom: 0.7rem;
 }
@@ -600,11 +584,6 @@ dialog::backdrop {
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.7;
-}
-.login-page > footer {
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-align: center;
 }
 .initial-loading {
   padding: 3rem;
@@ -714,24 +693,10 @@ dialog::backdrop {
     content: none;
   }
   .login-page {
-    grid-template-columns: 1fr 1fr;
-    gap: 3rem 5rem;
     padding: 4rem 2rem 2rem;
   }
   .login-card {
     padding: 2.5rem;
-  }
-  .login-intro .brand {
-    margin-bottom: 4rem;
-  }
-  .intro-note {
-    display: block;
-    margin-top: 3rem;
-    color: var(--muted);
-    font-size: 0.75rem;
-  }
-  .login-page > footer {
-    grid-column: 1 / -1;
   }
 }
 @media (min-width: 1280px) {
@@ -754,4 +719,12 @@ dialog::backdrop {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+}
+
+.password-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 0.65rem;
 }
