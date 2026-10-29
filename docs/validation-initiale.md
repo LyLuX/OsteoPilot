@@ -69,3 +69,8 @@ Quelques alertes basses de développement Jest/deepmerge restent documentées.
 Aucun compte universel, aucune donnée réelle, aucun serveur persistant lancé.
 Aucun agenda, rendez-vous, facturation ou module comptable. Aucune certification
 ou conformité réglementaire prétendue ; vérifications d’usage dans confidentialite.md.
+
+Le premier run GitHub a exécuté les 29 tests backend avec succès, puis a
+échoué à enregistrer le rapport dans un dossier absent du checkout neuf.
+La préparation explicite des répertoires de rapports a été ajoutée à la CI ;
+la porte est restée en échec tant que la validation était incomplète.

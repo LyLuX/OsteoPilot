@@ -28,6 +28,7 @@ jobs:
             frontend/package-lock.json
       - run: npm ci
       - run: npm ci --prefix frontend
+      - run: node scripts/prepare-reports.js
       - run: npm run lint
       - run: npm run format:check
       - run: npm test -- --json --outputFile=coverage/security/backend.json
