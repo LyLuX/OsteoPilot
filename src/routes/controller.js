@@ -1,6 +1,6 @@
 import { parse } from '../core/validation.js';
 import { idInput } from './registry.js';
-export function createControllers({ auth, patients, administration }) {
+export function createControllers({ auth, patients, administration, payments }) {
   const token = (req) => req.cookies['osteopilot.access'];
   const csrf = (req) => req.get('X-CSRF-Token');
   const key = (req) => req.get('Idempotency-Key');
@@ -25,10 +25,15 @@ export function createControllers({ auth, patients, administration }) {
       auth.clearCookie(res);
       return result;
     },
+    paymentsList: (req) => payments.list(req.query),
+    paymentsSummary: (req) => payments.summary(req.query),
+    paymentPatients: (req) => payments.patients(req.query),
+    paymentsCreate: (req) => payments.create(token(req), csrf(req), req.body, key(req)),
     patientsList: (req) => patients.list(req.query),
     patientsCreate: (req) => patients.create(token(req), csrf(req), req.body, key(req)),
     patientGet: (req) => patients.get(id(req)),
     patientUpdate: (req) => patients.update(token(req), csrf(req), id(req), req.body),
+    patientStatus: (req) => patients.setActive(token(req), csrf(req), id(req), req.body),
     patientArchive: (req) => patients.update(token(req), csrf(req), id(req), req.body, true),
     importPreview: async (req) => {
       const result = await patients.preview(req.body.csv);
@@ -57,6 +62,8 @@ export function createControllers({ auth, patients, administration }) {
       administration.setPermissions(token(req), csrf(req), id(req), req.body),
     settingsGet: () => administration.settings(),
     settingsUpdate: (req) => administration.saveSettings(token(req), csrf(req), req.body),
+    paymentMethodUpdate: (req) =>
+      administration.changePaymentMethod(token(req), csrf(req), req.body),
     history: (req) => administration.history(req.query),
   };
 }

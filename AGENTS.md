@@ -9,6 +9,11 @@
 - Réutiliser composants et variables du thème. Construire pour 320 px, avec
   cibles tactiles, labels, focus et navigation clavier. Définir les badges
   uniquement par variables CSS ou color-mix de ces variables.
+- Appliquer partout et pour la suite du développement les couleurs d’action de
+  docs/conventions.md : vert connexion/création/enregistrement/import, rouge
+  déconnexion/archivage/suppression/erreur, jaune modification/avertissement,
+  bleu consultation/recherche/export, neutre navigation/annulation. Bouton et
+  notification partagent la tonalité ; aucun titre d’état dans les notifications.
 - Messages français, UUID publics, projections explicites. Aucun secret ni objet
   personnel complet dans les audits/logs.
 - Services : règles métier et transaction explicite. Repositories : accès SQL,

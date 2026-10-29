@@ -22,7 +22,7 @@ créations/imports répétables. Les DDL restent une exception MySQL documentée
 Français cohérent, composants shared, erreurs via errorMessage, variables du thème.
 Chargement/vide/erreur, confirmations, labels et droits cohérents.
 Dates de filtres d’historique en UTC ; affichage Europe/Paris.
-Calendrier local sans persistance, sept colonnes, aucune largeur minimale causant
+Calendrier des paiements sur sept colonnes, aucune largeur minimale causant
 un débordement à 320 px. Hauteur tactile des jours de 52 px et largeur disponible.
 
 ## Qualité
@@ -37,7 +37,8 @@ pour les mutations et errors={resource.fieldErrors} pour les filtres.
 Field, PasswordInput et FormControl reprennent les états is-invalid,
 invalid-feedback, aria-invalid et aria-describedby. Les erreurs sont affichées
 après soumission ; elles sont réévaluées à la saisie. Le premier champ invalide
-reçoit le focus. Les erreurs globales restent dans Alert.
+reçoit le focus. Les erreurs globales utilisent le NotificationProvider et les Toasts Bootstrap.
+Alert est réservé aux rapports détaillés persistants, notamment les erreurs CSV.
 
 Les contrôles natifs restent actifs via leur API de validité, mais les bulles
 navigateur sont remplacées par des messages français Bootstrap (noValidate).
@@ -47,3 +48,60 @@ Pour un groupe de cases, utiliser un seul FormFeedback et son identifiant partag
 Les erreurs 422 de l’API sont associées aux noms de champs ; la validation serveur
 ne doit jamais être retirée au motif qu’un contrôle existe dans l’interface.
 Le fichier CSV utilise également FormControl pour ses erreurs de fichier.
+
+## Notifications et logs
+
+Monter NotificationProvider une seule fois au-dessus de AuthProvider.
+Utiliser useNotifications pour un message direct, useTask pour une opération et
+useResource pour un chargement. Les Toasts utilisent le JavaScript Bootstrap,
+delay: 2000, autohide et une croix data-bs-dismiss. Ne pas recréer un simple timer
+CSS ni remplacer les messages de champ persistants par une notification seule.
+Un message identique réactualise le toast courant et son délai.
+
+Les traces techniques sont indépendantes de l’audit SQL transactionnel.
+En développement, les traces HTTP gardent uniquement les routes déclarées.
+Les traces SQL optionnelles masquent littéraux, commentaires et paramètres ;
+les syntaxes non reconnues sont entièrement masquées. Aucune donnée brute de
+requête, cookie, jeton, corps HTTP ou valeur patient ne doit être ajoutée.
+Les erreurs d’écriture de traces techniques ne changent pas le résultat métier.
+
+## Couleurs des actions
+
+Appliquer cette convention à toutes les fonctionnalités présentes et futures.
+Utiliser les variantes Bootstrap sur les boutons et la même tonalité dans les
+notifications correspondant à l’action :
+
+- success (vert) : connexion, activation, création, enregistrement, import confirmé ;
+- danger (rouge) : déconnexion manuelle ou automatique, désactivation, archivage, suppression,
+  refus et erreur, même si une action de sortie réussit ;
+- warning (jaune) : entrée en modification, avertissement ;
+- info (bleu) : consultation, recherche, filtre, export ;
+- secondary (neutre) : annuler, retour, pagination, contrôles de navigation.
+
+Un enregistrement après modification reste vert. Une erreur prend toujours la
+priorité en rouge. Les confirmations reprennent la tonalité de leur action via
+ConfirmDialog tone. useTask.run(work, message, tone) utilise success par défaut.
+Les notifications affichent uniquement leur message et la croix, sans titre
+« Succès », « Erreur », « Attention » ou « Information ». Garder des messages
+explicites et les rôles accessibles pour comprendre le résultat sans perception
+des couleurs. Réutiliser les variables du thème et les classes Bootstrap ; ne pas
+coder de couleurs ponctuelles dans les pages.
+
+## Filtres de listes
+
+Réutiliser FilterPanel (adapté du composant GreenDesk) pour les filtres : un
+champ de recherche et cinq autres champs au maximum, champs libellés, contrôles
+Bootstrap et erreurs via FormControl. Sur mobile, le panneau est dépliable au
+clavier et conserve les valeurs et le focus lors des changements de largeur.
+La recherche patient attend 300 ms sans saisie avant requête ; les sélecteurs
+s’appliquent immédiatement. Chaque changement appliqué revient à la page 1.
+
+## Paiements
+
+Stocker et transporter des centimes entiers, convertir la saisie décimale sans
+multiplication de flottants et conserver une date civile YYYY-MM-DD. Le fuseau
+Europe/Paris sert à déterminer le jour courant ; les dates de paiement ne se
+convertissent pas en instants UTC. Valider les moyens acceptés et le patient
+actif côté serveur dans la transaction ; conserver les totaux des anciens moyens.
+Les nouveaux paiements utilisent une clé idempotente stable lors d’une reprise,
+avec audit dans le même commit et permissions payments.read/payments.create.

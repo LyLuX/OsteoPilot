@@ -18,7 +18,7 @@ export function request(method, url, data, options = {}) {
       })
       .then((res) => (options.responseType === 'blob' ? res.data : res.data.data))
       .catch((error) => {
-        if (error.response?.status === 401 && url !== '/auth/login')
+        if (error.response?.status === 401 && !['/auth/login', '/auth/me'].includes(url))
           window.dispatchEvent(new Event('osteopilot:session-expired'));
         throw error;
       });

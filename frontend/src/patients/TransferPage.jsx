@@ -1,6 +1,7 @@
 import { FormControl } from '../components/BootstrapForm.jsx';
 import { useRef, useState } from 'react';
 import { api } from '../api/client.js';
+import { createRequestId } from '../api/request-id.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Alert, ConfirmDialog, PageTitle, Panel, useTask } from '../components/shared.jsx';
 export default function TransferPage() {
@@ -10,13 +11,14 @@ export default function TransferPage() {
   const [fileError, setFileError] = useState('');
   const [preview, setPreview] = useState(null);
   const [confirm, setConfirm] = useState('');
-  const key = useRef(crypto.randomUUID());
+  const key = useRef(null);
+  if (key.current === null) key.current = createRequestId();
   const fileInput = useRef(null);
   const load = async (file) => {
     setPreview(null);
     setCsv('');
     setFileError('');
-    key.current = crypto.randomUUID();
+    key.current = createRequestId();
     if (!file) return;
     if (file.size > 512 * 1024) {
       task.setError('');
@@ -57,23 +59,25 @@ export default function TransferPage() {
     }
   };
   const exportFile = async () => {
-    const result = await task.run(async () => {
-      const blob = await api.post('/patients/export', {}, { responseType: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'osteopilot-patients.csv';
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      return true;
-    }, 'Export téléchargé. Conservez ce fichier dans un espace protégé.');
+    const result = await task.run(
+      async () => {
+        const blob = await api.post('/patients/export', {}, { responseType: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'osteopilot-patients.csv';
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return true;
+      },
+      'Export téléchargé. Conservez ce fichier dans un espace protégé.',
+      'info',
+    );
     if (result) setConfirm('');
   };
   return (
     <>
       <PageTitle eyebrow="Gestion patientèle" title="Importer / Exporter une patientèle" />
-      <Alert>{task.error}</Alert>
-      <Alert success>{task.message}</Alert>
       <div className="form-grid">
         {can('patients.import') && (
           <Panel>
@@ -125,7 +129,7 @@ export default function TransferPage() {
                 </ul>
                 <p className="muted">Aperçu limité aux 10 premières lignes.</p>
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-success"
                   disabled={!preview.valid || task.busy}
                   onClick={() => setConfirm('import')}
                 >
@@ -146,7 +150,7 @@ export default function TransferPage() {
               interprétées comme des formules sont neutralisées.
             </p>
             <button
-              className="btn btn-outline-secondary"
+              className="btn btn-outline-info"
               disabled={task.busy}
               onClick={() => setConfirm('export')}
             >
@@ -157,6 +161,7 @@ export default function TransferPage() {
       </div>
       {confirm && (
         <ConfirmDialog
+          tone={confirm === 'import' ? 'success' : 'info'}
           title={
             confirm === 'import' ? 'Confirmer l’import ?' : 'Exporter des données personnelles ?'
           }

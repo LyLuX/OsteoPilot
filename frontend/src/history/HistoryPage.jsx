@@ -1,13 +1,7 @@
-import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
+import BootstrapForm from '../components/BootstrapForm.jsx';
+import FilterPanel from '../components/FilterPanel.jsx';
 import { useState } from 'react';
-import {
-  Field,
-  PageTitle,
-  Panel,
-  Pagination,
-  ResourceState,
-  useResource,
-} from '../components/shared.jsx';
+import { PageTitle, Panel, Pagination, ResourceState, useResource } from '../components/shared.jsx';
 const blank = { actorId: '', action: '', entity: '', from: '', to: '' };
 export default function HistoryPage() {
   const [filters, setFilters] = useState(blank);
@@ -32,57 +26,71 @@ export default function HistoryPage() {
               ? { to: 'La date de fin doit être égale ou postérieure à la date de début.' }
               : {};
           }}
-          className="filter-bar"
           onSubmit={(e) => {
             e.preventDefault();
             setPage(1);
             setQuery(Object.fromEntries(Object.entries(filters).filter(([, value]) => value)));
           }}
         >
-          <Field label="Du (UTC)" name="from" type="date" value={filters.from} onChange={change} />
-          <Field label="Au (UTC)" name="to" type="date" value={filters.to} onChange={change} />
-          <Field
-            label="Acteur (UUID utilisateur)"
-            name="actorId"
-            pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-            value={filters.actorId}
-            onChange={change}
-            maxLength={36}
+          <FilterPanel
+            fields={[
+              {
+                name: 'from',
+                type: 'date',
+                label: 'Du (UTC)',
+                value: filters.from,
+                onChange: (value) => change('from', value),
+              },
+              {
+                name: 'to',
+                type: 'date',
+                label: 'Au (UTC)',
+                value: filters.to,
+                onChange: (value) => change('to', value),
+              },
+              {
+                name: 'actorId',
+                label: 'Acteur (UUID utilisateur)',
+                value: filters.actorId,
+                onChange: (value) => change('actorId', value),
+                pattern:
+                  '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+                maxLength: 36,
+              },
+              {
+                name: 'action',
+                label: 'Action exacte',
+                value: filters.action,
+                onChange: (value) => change('action', value),
+                maxLength: 80,
+              },
+              {
+                name: 'entity',
+                type: 'select',
+                label: 'Type d’entité',
+                value: filters.entity,
+                onChange: (value) => change('entity', value),
+                emptyLabel: 'Tous',
+                options: ['patient', 'user', 'role', 'settings', 'session', 'auth'].map(
+                  (value) => ({ value, label: value }),
+                ),
+              },
+            ]}
           />
-          <Field
-            label="Action exacte"
-            name="action"
-            value={filters.action}
-            onChange={change}
-            maxLength={80}
-          />
-          <label className="field">
-            <span>Type d’entité</span>
-            <FormControl
-              as="select"
-              className="form-select"
-              name="entity"
-              value={filters.entity}
-              onChange={(e) => change('entity', e.target.value)}
+          <div className="actions mb-3">
+            <button className="btn btn-info">Filtrer</button>
+            <button
+              className="btn btn-outline-secondary"
+              type="reset"
+              onClick={() => {
+                setFilters(blank);
+                setQuery({});
+                setPage(1);
+              }}
             >
-              <option value="">Tous</option>
-              {['patient', 'user', 'role', 'settings', 'session', 'auth'].map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </FormControl>
-          </label>
-          <button className="btn btn-primary">Filtrer</button>
-          <button
-            className="btn btn-outline-secondary"
-            type="reset"
-            onClick={() => {
-              setFilters(blank);
-              setQuery({});
-              setPage(1);
-            }}
-          >
-            Effacer
-          </button>
+              Effacer
+            </button>
+          </div>
         </BootstrapForm>
         <ResourceState resource={resource} />
         <table className="data-table">

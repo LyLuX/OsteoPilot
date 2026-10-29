@@ -5,7 +5,13 @@ import { parse, pageResult } from '../../core/validation.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { digest } from '../auth/auth.service.js';
 import { PatientRepository } from './patient.repository.js';
-import { patientInput, patientUpdate, patientQuery, publicPatient } from './patient.validator.js';
+import {
+  patientInput,
+  patientUpdate,
+  patientStatus,
+  patientQuery,
+  publicPatient,
+} from './patient.validator.js';
 import { parseCsv, exportCsv } from './csv.js';
 export function duplicateKey(p) {
   const normalized = [p.lastName, p.firstName, p.email, p.phone].map((s) =>
@@ -108,6 +114,30 @@ export class PatientService {
         return publicPatient(row);
       },
     );
+  }
+  async setActive(token, csrf, id, values) {
+    const input = parse(patientStatus, values);
+    return this.auth.write(token, csrf, 'patients.archive', async (ctx, tx) => {
+      const row = await this.repository.find(id, tx);
+      assert(row, 'Patient introuvable.', 404);
+      assert(
+        row.version === input.version,
+        'Cette fiche a changé. Rechargez-la avant de modifier.',
+        409,
+      );
+      await this.repository.update(row, { archived: !input.active, version: row.version + 1 }, tx);
+      await recordAudit(
+        this.db,
+        {
+          actorId: ctx.user.id,
+          action: input.active ? 'patients.activate' : 'patients.archive',
+          entity: 'patient',
+          entityId: id,
+        },
+        tx,
+      );
+      return publicPatient(row);
+    });
   }
   async preview(csv, transaction) {
     const parsed = parseCsv(csv);

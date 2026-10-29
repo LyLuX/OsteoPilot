@@ -1,15 +1,34 @@
-import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useId, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { PageTitle, Panel } from '../components/shared.jsx';
+import { PageTitle, Panel, Pagination, ResourceState, useResource } from '../components/shared.jsx';
+import PaymentModal from '../payments/PaymentModal.jsx';
+import { paymentMethods, formatMoney } from '../payments/money.js';
 import { dateKey, todayInParis, monthDays, moveDays } from './calendar.js';
 export default function DashboardPage({ now }) {
-  const { user, can } = useAuth();
+  const { can } = useAuth();
   const today = todayInParis(now);
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const grid = useRef(null);
   const days = monthDays(month);
+  const cellPrefix = useId();
+  const [page, setPage] = useState(1);
+  const [paymentModal, setPaymentModal] = useState(false);
+  const canReadPayments = can('payments.read');
+  const summary = useResource(
+    '/payments/summary',
+    { from: dateKey(days[0]), to: dateKey(days[41]) },
+    canReadPayments,
+  );
+  const payments = useResource(
+    '/payments',
+    { date: dateKey(selected), page, limit: 10 },
+    canReadPayments,
+  );
+  const totals = new Map(summary.data?.days?.map((day) => [day.date, day]) ?? []);
+  const summaryAvailable =
+    canReadPayments && !summary.loading && !summary.error && Boolean(summary.data);
+  const dayTotal = totals.get(dateKey(selected))?.totalCents ?? 0;
   const label = (d) =>
     d.toLocaleDateString('fr-FR', {
       weekday: 'long',
@@ -19,6 +38,7 @@ export default function DashboardPage({ now }) {
     });
   const select = (date, focus = false) => {
     setSelected(date);
+    setPage(1);
     setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     if (focus)
       requestAnimationFrame(() =>
@@ -49,14 +69,13 @@ export default function DashboardPage({ now }) {
   };
   return (
     <>
-      <PageTitle eyebrow="Votre espace au quotidien" title={'Bonjour ' + user.firstName + ' !'}>
+      <PageTitle eyebrow="Votre espace au quotidien">
         <span className="today-label">{label(today)}</span>
       </PageTitle>
       <div className="dashboard-grid">
         <Panel className="calendar-panel">
           <div className="calendar-heading">
             <div>
-              <p className="eyebrow">Le fil des jours</p>
               <h2 aria-live="polite">
                 {month.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
               </h2>
@@ -86,12 +105,14 @@ export default function DashboardPage({ now }) {
               <span key={d}>{d}</span>
             ))}
           </div>
+          {canReadPayments && <ResourceState resource={summary} />}
           <div className="calendar-days" role="group" aria-label="Calendrier mensuel" ref={grid}>
             {days.map((d) => (
               <button
                 key={dateKey(d)}
                 data-date={dateKey(d)}
                 aria-label={label(d)}
+                aria-describedby={canReadPayments ? cellPrefix + dateKey(d) : undefined}
                 aria-current={dateKey(d) === dateKey(today) ? 'date' : undefined}
                 aria-pressed={dateKey(d) === dateKey(selected)}
                 tabIndex={dateKey(d) === dateKey(selected) ? 0 : -1}
@@ -103,7 +124,34 @@ export default function DashboardPage({ now }) {
                 onClick={() => select(d)}
                 onKeyDown={(e) => keydown(e, d)}
               >
-                <span>{d.getDate()}</span>
+                <span className="day-number">{d.getDate()}</span>
+                {canReadPayments && (
+                  <span className="calendar-day-payments" id={cellPrefix + dateKey(d)}>
+                    {paymentMethods.map((method) => (
+                      <span className="calendar-payment-line" key={method.code}>
+                        <span>
+                          <span className="visually-hidden">{method.label}</span>
+                          <abbr title={method.label} aria-hidden="true">
+                            {method.short}
+                          </abbr>
+                        </span>
+                        <span>
+                          {summaryAvailable
+                            ? formatMoney(totals.get(dateKey(d))?.methods[method.code] ?? 0)
+                            : '…'}
+                        </span>
+                      </span>
+                    ))}
+                    <span className="calendar-payment-line calendar-payment-total">
+                      <span>Total</span>
+                      <span>
+                        {summaryAvailable
+                          ? formatMoney(totals.get(dateKey(d))?.totalCents ?? 0)
+                          : '…'}
+                      </span>
+                    </span>
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -111,37 +159,74 @@ export default function DashboardPage({ now }) {
             <span>
               <i aria-hidden="true" /> Aujourd’hui
             </span>
-            <span>Calendrier de repérage</span>
           </div>
         </Panel>
         <div className="dashboard-aside">
-          <Panel>
-            <p className="eyebrow">Votre cabinet, simplement</p>
-            <h2>Une place pour l’essentiel.</h2>
-            <p className="muted">
-              Retrouvez vos patients et leurs coordonnées dans un espace commun à votre cabinet.
-            </p>
-            {can('patients.create') && (
-              <Link className="btn btn-primary" to="/patients/new">
-                + Créer un patient
-              </Link>
-            )}
-            {can('patients.read') && (
-              <Link className="text-link" to="/patients">
-                Consulter la patientèle →
-              </Link>
-            )}
-          </Panel>
           <Panel className="quiet-panel">
-            <p className="eyebrow">Date sélectionnée</p>
             <h3>{label(selected)}</h3>
-            <p className="muted mb-0">
-              Ce calendrier permet de se repérer dans les dates. Il ne contient aucun événement ni
-              rendez-vous.
-            </p>
+            {canReadPayments ? (
+              <>
+                <p className="payment-day-total">
+                  Total : {summaryAvailable ? formatMoney(dayTotal) : '…'}
+                </p>
+                <ResourceState resource={payments} />
+                {!payments.loading && !payments.error && payments.data && (
+                  <>
+                    {payments.data.items.length === 0 ? (
+                      <p className="muted">Aucun paiement enregistré pour ce jour.</p>
+                    ) : (
+                      <ul className="payment-list" aria-label="Paiements du jour">
+                        {payments.data.items.map((payment) => (
+                          <li key={payment.id}>
+                            <div>
+                              <strong>
+                                {payment.patient?.lastName} {payment.patient?.firstName}
+                              </strong>
+                              <span className="muted d-block">
+                                {
+                                  paymentMethods.find((method) => method.code === payment.method)
+                                    ?.label
+                                }
+                              </span>
+                            </div>
+                            <strong>{formatMoney(payment.amountCents)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <Pagination data={payments.data.pagination} page={page} setPage={setPage} />
+                  </>
+                )}
+                {can('payments.create') && (
+                  <button
+                    className="btn btn-success w-100 mt-3"
+                    disabled={!summaryAvailable}
+                    onClick={() => setPaymentModal(true)}
+                  >
+                    Enregistrer un paiement
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="muted">Vous ne disposez pas du droit de consulter les paiements.</p>
+            )}
           </Panel>
         </div>
       </div>
+      {paymentModal && (
+        <PaymentModal
+          date={dateKey(selected)}
+          acceptedMethods={summary.data?.acceptedMethods ?? []}
+          onCancel={() => setPaymentModal(false)}
+          onSaved={(payment) => {
+            const [year, monthNumber, day] = payment.date.split('-').map(Number);
+            select(new Date(year, monthNumber - 1, day));
+            setPaymentModal(false);
+            summary.reload();
+            payments.reload();
+          }}
+        />
+      )}
     </>
   );
 }

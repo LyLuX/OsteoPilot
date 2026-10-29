@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, setCsrfToken } from '../api/client.js';
+import { useNotifications } from '../notifications/Notifications.jsx';
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }) {
+  const notify = useNotifications();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
@@ -29,10 +31,11 @@ export function AuthProvider({ children }) {
       setUser(null);
       setCsrfToken('');
       setNotice('Votre session a expiré. Reconnectez-vous.');
+      notify({ message: 'Votre session a expiré. Reconnectez-vous.', tone: 'danger' });
     };
     window.addEventListener('osteopilot:session-expired', expired);
     return () => window.removeEventListener('osteopilot:session-expired', expired);
-  }, []);
+  }, [notify]);
   const authenticated = Boolean(user);
   useEffect(() => {
     if (!authenticated) return undefined;
@@ -54,6 +57,7 @@ export function AuthProvider({ children }) {
             setUser(null);
             setCsrfToken('');
             setNotice('Déconnexion après 15 minutes d’inactivité.');
+            notify({ message: 'Déconnexion après 15 minutes d’inactivité.', tone: 'danger' });
           });
       } else if (!refreshing && now - lastRefresh >= 5 * 60000 && lastActivity > lastRefresh) {
         refreshing = true;
@@ -76,7 +80,7 @@ export function AuthProvider({ children }) {
       window.removeEventListener('pointerdown', activity);
       window.removeEventListener('keydown', activity);
     };
-  }, [authenticated]);
+  }, [authenticated, notify]);
   const login = async (email, password) => {
     const session = await api.post('/auth/login', { email, password });
     setCsrfToken(session.csrfToken);

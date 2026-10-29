@@ -1,30 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { navigation } from './navigation.js';
-import { Alert, useTask } from '../components/shared.jsx';
+import SidebarNavigation from './SidebarNavigation.jsx';
+import { useTask } from '../components/shared.jsx';
 import metadata from '../../package.json';
-function Navigation({ close }) {
-  const { can } = useAuth();
+function BrandIdentity() {
   return (
-    <>
-      {navigation.map((group) => {
-        const items = group.items.filter(
-          (i) => can(i.permission) || (i.anyPermission && can(i.anyPermission)),
-        );
-        return items.length ? (
-          <div className="nav-group" key={group.label}>
-            <p>{group.label}</p>
-            {items.map((i) => (
-              <NavLink end to={i.path} key={i.path} onClick={close}>
-                <span aria-hidden="true">{i.icon}</span>
-                {i.label}
-              </NavLink>
-            ))}
-          </div>
-        ) : null;
-      })}
-    </>
+    <span className="brand-identity">
+      <img className="brand-mark" src="/osteopilot-mark.png?v=1" alt="" width="38" height="38" />
+      OstéoPilot
+    </span>
   );
 }
 export default function AppLayout() {
@@ -52,13 +37,11 @@ export default function AppLayout() {
       </a>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">O</span>OsteoPilot
+          <BrandIdentity />
         </div>
-        <div className="cabinet-label">Votre espace cabinet</div>
         <nav aria-label="Navigation principale">
-          <Navigation />
+          <SidebarNavigation />
         </nav>
-        <div className="sidebar-bottom">Simple. Serein. Au quotidien.</div>
       </aside>
       <dialog
         className="mobile-menu"
@@ -67,7 +50,7 @@ export default function AppLayout() {
         aria-label="Navigation principale"
       >
         <div className="brand">
-          OsteoPilot
+          <BrandIdentity />
           <button
             className="btn btn-light"
             onClick={() => setOpen(false)}
@@ -77,7 +60,7 @@ export default function AppLayout() {
           </button>
         </div>
         <nav>
-          <Navigation close={() => setOpen(false)} />
+          <SidebarNavigation close={() => setOpen(false)} />
         </nav>
       </dialog>
       <div className="workspace">
@@ -100,21 +83,18 @@ export default function AppLayout() {
               {auth.user.firstName} {auth.user.lastName}
             </span>
             <button
-              className="btn btn-outline-secondary"
+              className="btn btn-outline-danger"
               disabled={task.busy}
-              onClick={() => task.run(auth.logout)}
+              onClick={() => task.run(auth.logout, 'Vous êtes déconnecté.', 'danger')}
             >
               Déconnexion
             </button>
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
-          <Alert>{task.error}</Alert>
           <Outlet />
         </main>
-        <footer>
-          OsteoPilot <span>v{metadata.version} · Votre cabinet, au quotidien</span>
-        </footer>
+        <footer>OstéoPilot · v{metadata.version}</footer>
       </div>
     </div>
   );

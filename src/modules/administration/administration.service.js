@@ -1,3 +1,5 @@
+import { paymentMethodChangeInput, paymentMethodCodes } from './payment-methods.js';
+import { SettingsRepository, publicSettings } from './settings.repository.js';
 import bcrypt from 'bcrypt';
 import { Op } from 'sequelize';
 import { assert } from '../../core/errors.js';
@@ -55,6 +57,7 @@ export class AdministrationService {
   constructor(db, auth) {
     this.db = db;
     this.auth = auth;
+    this.settingsRepository = new SettingsRepository(db);
   }
   async list(kind, query) {
     query = parse(listInput, query);
@@ -204,21 +207,45 @@ export class AdministrationService {
     });
   }
   async settings() {
-    return this.db.models.Settings.findOne({
-      attributes: ['id', 'name', 'address', 'phone', 'email', 'timezone', 'updatedAt'],
-    });
+    const row = await this.settingsRepository.find();
+    assert(row, 'Paramètres du cabinet introuvables.', 404);
+    return publicSettings(row);
   }
   async saveSettings(token, csrf, values) {
     const input = parse(settingsInput, values);
     return this.auth.write(token, csrf, 'settings.update', async (ctx, tx) => {
-      const row = await this.db.models.Settings.findOne({ transaction: tx });
-      await row.update(input, { transaction: tx });
+      const row = await this.settingsRepository.find(tx);
+      assert(row, 'Paramètres du cabinet introuvables.', 404);
+      await this.settingsRepository.update(row, input, tx);
       await recordAudit(
         this.db,
         { actorId: ctx.user.id, action: 'settings.update', entity: 'settings', entityId: row.id },
         tx,
       );
-      return input;
+      return publicSettings(row);
+    });
+  }
+  async changePaymentMethod(token, csrf, values) {
+    const input = parse(paymentMethodChangeInput, values);
+    return this.auth.write(token, csrf, 'settings.update', async (ctx, tx) => {
+      const row = await this.settingsRepository.find(tx);
+      assert(row, 'Paramètres du cabinet introuvables.', 404);
+      const selected = new Set(row.paymentMethods ?? []);
+      if (input.accepted) selected.add(input.method);
+      else selected.delete(input.method);
+      const paymentMethods = paymentMethodCodes.filter((code) => selected.has(code));
+      await this.settingsRepository.update(row, { paymentMethods }, tx);
+      await recordAudit(
+        this.db,
+        {
+          actorId: ctx.user.id,
+          action: 'settings.payment-methods.update',
+          entity: 'settings',
+          entityId: row.id,
+        },
+        tx,
+      );
+      return { paymentMethods };
     });
   }
   async history(query) {

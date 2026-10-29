@@ -10,6 +10,7 @@ import { withTransaction } from '../../src/core/database/transaction.js';
 import { createApp } from '../../src/app.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { PatientService } from '../../src/modules/patients/patient.service.js';
+import { PaymentService } from '../../src/modules/payments/payment.service.js';
 import { AdministrationService } from '../../src/modules/administration/administration.service.js';
 import { permissions } from '../../src/modules/permissions/permissions.js';
 const safeName = process.env.DATABASE_NAME;
@@ -22,6 +23,7 @@ const config = createEnvironment();
 const db = createDatabase(config);
 const auth = new AuthService(db, config);
 const patients = new PatientService(db, auth);
+const payments = new PaymentService(db, auth);
 const administration = new AdministrationService(db, auth);
 const app = createApp({ db, config });
 let admin;
@@ -54,12 +56,32 @@ afterAll(async () => db.sequelize.close());
 const snapshot = async () =>
   Object.fromEntries(
     await Promise.all(
-      ['Patients', 'AuditLogs', 'IdempotencyKeys', 'Sessions'].map(async (table) => [
+      ['Patients', 'Payments', 'AuditLogs', 'IdempotencyKeys', 'Sessions'].map(async (table) => [
         table,
         await db.models[table].count(),
       ]),
     ),
   );
+test('migration des règlements depuis le schéma initial : informations du cabinet préservées', async () => {
+  // Le garde du fichier et le runner réservent ces DDL à la base éphémère.
+  const qi = db.sequelize.getQueryInterface();
+  const before = await administration.settings();
+  await qi.removeColumn('Settings', 'paymentMethods');
+  await db.sequelize.transaction((transaction) =>
+    qi.bulkDelete(
+      'SequelizeMeta',
+      { name: ['202610290002-settings-payment-methods.js', '202610290003-payments.js'] },
+      { transaction },
+    ),
+  );
+  await expect(checkSchema(db)).rejects.toMatchObject({ status: 409 });
+  await migrate(db);
+  await checkSchema(db);
+  expect(await administration.settings()).toEqual({ ...before, paymentMethods: [] });
+  await migrate(db);
+  expect(await administration.settings()).toEqual({ ...before, paymentMethods: [] });
+});
+
 test('migration répétable et schéma contraint InnoDB', async () => {
   const count = await db.models.Users.count();
   await migrate(db);
@@ -344,4 +366,447 @@ test('écriture Sequelize sans transaction explicitement refusée', async () => 
   await expect(db.models.Roles.create({ name: 'HORS-TRANSACTION' })).rejects.toThrow(
     'Transaction explicite',
   );
+});
+
+test('statut patient HTTP : désactivation, réactivation, filtres, audit minimal et version dépassée', async () => {
+  const row = await patients.create(session.token, session.csrfToken, input(), randomUUID());
+  const change = (values) =>
+    request(app)
+      .patch('/api/v1/patients/' + row.id + '/status')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + session.token)
+      .set('X-CSRF-Token', session.csrfToken)
+      .send(values);
+  const disabled = await change({ active: false, version: row.version });
+  expect(disabled.status).toBe(200);
+  expect(disabled.body.data).toMatchObject({ archived: true, version: 2 });
+  expect(
+    (await patients.list({ archived: 'true', search: row.lastName })).items.map((p) => p.id),
+  ).toContain(row.id);
+  expect((await patients.list({ archived: 'false', search: row.lastName })).items).toHaveLength(0);
+  const before = await db.models.AuditLogs.count();
+  expect((await change({ active: true, version: 1 })).status).toBe(409);
+  expect(await db.models.AuditLogs.count()).toBe(before);
+  const enabled = await change({ active: true, version: 2 });
+  expect(enabled.status).toBe(200);
+  expect(enabled.body.data).toMatchObject({ archived: false, version: 3 });
+  expect(enabled.body.data).not.toHaveProperty('duplicateKey');
+  expect(
+    (await patients.list({ archived: 'false', search: row.lastName })).items.map((p) => p.id),
+  ).toContain(row.id);
+  const audits = await db.models.AuditLogs.findAll({
+    where: { entityId: row.id },
+    order: [['createdAt', 'ASC']],
+  });
+  expect(audits.map((a) => a.action).sort()).toEqual([
+    'patients.activate',
+    'patients.archive',
+    'patients.create',
+  ]);
+  expect(JSON.stringify(audits)).not.toContain(row.lastName);
+});
+
+test('statut patient : validation stricte, CSRF, permission HTTP et service', async () => {
+  const row = await patients.create(session.token, session.csrfToken, input(), randomUUID());
+  const send = (values, s = session, csrf = s.csrfToken) =>
+    request(app)
+      .patch('/api/v1/patients/' + row.id + '/status')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + s.token)
+      .set('X-CSRF-Token', csrf)
+      .send(values);
+  const before = await db.models.AuditLogs.count();
+  for (const invalid of [
+    { version: 1 },
+    { active: 'false', version: 1 },
+    { active: false, version: 0 },
+    { active: false, version: 1, firstName: 'Interdit' },
+  ]) {
+    expect((await send(invalid)).status).toBe(422);
+    await expect(
+      patients.setActive(session.token, session.csrfToken, row.id, invalid),
+    ).rejects.toMatchObject({ status: 422 });
+  }
+  expect((await send({ active: false, version: 1 }, session, 'invalid')).status).toBe(403);
+  expect(await db.models.AuditLogs.count()).toBe(before);
+  const restricted = await restrictedUser();
+  const count = await db.models.AuditLogs.count();
+  expect((await send({ active: false, version: 1 }, restricted.session)).status).toBe(403);
+  await expect(
+    patients.setActive(restricted.session.token, restricted.session.csrfToken, row.id, {
+      active: false,
+      version: 1,
+    }),
+  ).rejects.toMatchObject({ status: 403 });
+  expect(await db.models.AuditLogs.count()).toBe(count);
+  expect((await patients.get(row.id)).archived).toBe(false);
+  await expect(
+    patients.setActive(session.token, session.csrfToken, randomUUID(), {
+      active: true,
+      version: 1,
+    }),
+  ).rejects.toMatchObject({ status: 404 });
+});
+
+test.each([false, true])(
+  'statut active=%s : panne audit annule statut et version',
+  async (active) => {
+    const row = await patients.create(session.token, session.csrfToken, input(), randomUUID());
+    if (active)
+      await patients.setActive(session.token, session.csrfToken, row.id, {
+        active: false,
+        version: 1,
+      });
+    const before = await patients.get(row.id);
+    const count = await db.models.AuditLogs.count();
+    const original = db.models.AuditLogs.create.bind(db.models.AuditLogs);
+    jest.spyOn(db.models.AuditLogs, 'create').mockImplementation(async (values, options) => {
+      expect(options.transaction).toBeTruthy();
+      const changed = await db.models.Patients.findByPk(row.id, {
+        transaction: options.transaction,
+      });
+      expect(changed.archived).toBe(!active);
+      await original(values, options);
+      throw new Error('Panne audit statut');
+    });
+    await expect(
+      patients.setActive(session.token, session.csrfToken, row.id, {
+        active,
+        version: before.version,
+      }),
+    ).rejects.toThrow('Panne audit statut');
+    expect(await patients.get(row.id)).toEqual(before);
+    expect(await db.models.AuditLogs.count()).toBe(count);
+  },
+);
+
+const settingsValues = (settings) =>
+  Object.fromEntries(
+    ['name', 'address', 'phone', 'email', 'timezone'].map((field) => [field, settings[field]]),
+  );
+test('règlements HTTP : changement isolé, relecture et informations générales indépendantes', async () => {
+  const before = await administration.settings();
+  const patch = (method, accepted) =>
+    request(app)
+      .patch('/api/v1/settings/payment-methods')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + session.token)
+      .set('X-CSRF-Token', session.csrfToken)
+      .send({ method, accepted });
+  const count = await db.models.AuditLogs.count();
+  const saved = await patch('cash', true);
+  expect(saved.status).toBe(200);
+  expect(saved.body.data).toEqual({ paymentMethods: ['cash'] });
+  expect((await patch('transfer', true)).status).toBe(200);
+  const after = await administration.settings();
+  expect(settingsValues(after)).toEqual(settingsValues(before));
+  const read = await request(app)
+    .get('/api/v1/settings')
+    .set('Cookie', 'osteopilot.access=' + session.token);
+  expect(read.body.data.paymentMethods).toEqual(['cash', 'transfer']);
+  expect(await db.models.AuditLogs.count()).toBe(count + 2);
+  await administration.saveSettings(session.token, session.csrfToken, {
+    ...settingsValues(before),
+    name: 'Cabinet modifié',
+  });
+  expect((await administration.settings()).paymentMethods).toEqual(['cash', 'transfer']);
+  await expect(
+    administration.saveSettings(session.token, session.csrfToken, {
+      ...settingsValues(before),
+      paymentMethods: [],
+    }),
+  ).rejects.toMatchObject({ status: 422 });
+  await migrate(db);
+  expect((await administration.settings()).paymentMethods).toEqual(['cash', 'transfer']);
+  await patch('cash', false);
+  await patch('transfer', false);
+  expect((await administration.settings()).paymentMethods).toEqual([]);
+  const audit = await db.models.AuditLogs.findOne({
+    where: { action: 'settings.payment-methods.update', entityId: before.id },
+  });
+  expect(audit).toBeTruthy();
+  expect(JSON.stringify(audit)).not.toMatch(/paymentMethods|cash|transfer/);
+});
+
+test('règlements : validation stricte, CSRF et droits HTTP comme service', async () => {
+  const before = await administration.settings();
+  const count = await db.models.AuditLogs.count();
+  const send = (values, s = session, csrf = s.csrfToken) =>
+    request(app)
+      .patch('/api/v1/settings/payment-methods')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + s.token)
+      .set('X-CSRF-Token', csrf)
+      .send(values);
+  for (const invalid of [
+    { method: 'bitcoin', accepted: true },
+    { method: 'cash', accepted: 'true' },
+    { accepted: true },
+    { method: 'card', accepted: true, name: 'Interdit' },
+  ]) {
+    await expect(
+      administration.changePaymentMethod(session.token, session.csrfToken, invalid),
+    ).rejects.toMatchObject({ status: 422 });
+    expect((await send(invalid)).status).toBe(422);
+  }
+  expect((await send({ method: 'cash', accepted: true }, session, 'invalid')).status).toBe(403);
+  expect(await db.models.AuditLogs.count()).toBe(count);
+  const restricted = await restrictedUser(['settings.read']);
+  const baseline = await db.models.AuditLogs.count();
+  await expect(
+    administration.changePaymentMethod(restricted.session.token, restricted.session.csrfToken, {
+      method: 'card',
+      accepted: true,
+    }),
+  ).rejects.toMatchObject({ status: 403 });
+  expect((await send({ method: 'card', accepted: true }, restricted.session)).status).toBe(403);
+  expect(await administration.settings()).toEqual(before);
+  expect(await db.models.AuditLogs.count()).toBe(baseline);
+});
+
+test('règlements : deux cases modifiées simultanément sont conservées ensemble', async () => {
+  for (const method of ['cash', 'card'])
+    await administration.changePaymentMethod(session.token, session.csrfToken, {
+      method,
+      accepted: false,
+    });
+  await Promise.all(
+    ['cash', 'card'].map((method) =>
+      administration.changePaymentMethod(session.token, session.csrfToken, {
+        method,
+        accepted: true,
+      }),
+    ),
+  );
+  expect((await administration.settings()).paymentMethods).toEqual(
+    expect.arrayContaining(['cash', 'card']),
+  );
+});
+
+test('règlements : panne audit après écriture annule aussi la sélection', async () => {
+  const before = await administration.settings();
+  const count = await db.models.AuditLogs.count();
+  const accepted = !before.paymentMethods.includes('cheque');
+  const original = db.models.AuditLogs.create.bind(db.models.AuditLogs);
+  jest.spyOn(db.models.AuditLogs, 'create').mockImplementation(async (values, options) => {
+    const row = await db.models.Settings.findOne({ transaction: options.transaction });
+    expect(row.paymentMethods.includes('cheque')).toBe(accepted);
+    await original(values, options);
+    throw new Error('Panne audit règlements');
+  });
+  await expect(
+    administration.changePaymentMethod(session.token, session.csrfToken, {
+      method: 'cheque',
+      accepted,
+    }),
+  ).rejects.toThrow('Panne audit règlements');
+  expect(await administration.settings()).toEqual(before);
+  expect(await db.models.AuditLogs.count()).toBe(count);
+});
+
+const paymentValues = (patientId, overrides = {}) => ({
+  patientId,
+  date: '2026-10-29',
+  method: 'cash',
+  amountCents: 1050,
+  ...overrides,
+});
+async function paymentPatient() {
+  return patients.create(session.token, session.csrfToken, input(), randomUUID());
+}
+async function acceptMethod(method, accepted = true) {
+  return administration.changePaymentMethod(session.token, session.csrfToken, { method, accepted });
+}
+
+test('paiements HTTP : création liée au patient, totaux exacts par type et liste paginée', async () => {
+  await acceptMethod('cash');
+  await acceptMethod('card');
+  const patient = await paymentPatient();
+  const cookie = 'osteopilot.access=' + session.token;
+  const response = await request(app)
+    .post('/api/v1/payments')
+    .set('Origin', config.publicUrl)
+    .set('Cookie', cookie)
+    .set('X-CSRF-Token', session.csrfToken)
+    .set('Idempotency-Key', randomUUID())
+    .send(paymentValues(patient.id));
+  expect(response.status).toBe(201);
+  expect(response.body.data).toMatchObject({
+    patientId: patient.id,
+    amountCents: 1050,
+    date: '2026-10-29',
+  });
+  expect(response.body.data).not.toHaveProperty('createdBy');
+  await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id, { method: 'card', amountCents: 2051 }),
+    randomUUID(),
+  );
+  const summary = await request(app)
+    .get('/api/v1/payments/summary')
+    .set('Cookie', cookie)
+    .query({ from: '2026-10-29', to: '2026-10-29' });
+  expect(summary.status).toBe(200);
+  expect(summary.body.data.days).toEqual([
+    {
+      date: '2026-10-29',
+      methods: { cash: 1050, card: 2051, cheque: 0, transfer: 0 },
+      totalCents: 3101,
+    },
+  ]);
+  const list = await request(app)
+    .get('/api/v1/payments')
+    .set('Cookie', cookie)
+    .query({ date: '2026-10-29', limit: 1 });
+  expect(list.body.data.items).toHaveLength(1);
+  expect(list.body.data.pagination.total).toBe(2);
+  expect(list.body.data.items[0].patient).toEqual({
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+  });
+  expect(list.body.data.items[0].patient).not.toHaveProperty('email');
+  const empty = await payments.summary({ from: '2026-10-28', to: '2026-10-28' });
+  expect(empty.days).toEqual([]);
+});
+
+test('paiement : concurrence et rejeu même clé ne créent ni doublon ni audit supplémentaire', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const values = paymentValues(patient.id, { date: '2026-10-30', amountCents: 1 });
+  const key = randomUUID();
+  const count = await db.models.Payments.count();
+  const audit = await db.models.AuditLogs.count({ where: { action: 'payments.create' } });
+  const [first, second] = await Promise.all([
+    payments.create(session.token, session.csrfToken, values, key),
+    payments.create(session.token, session.csrfToken, values, key),
+  ]);
+  expect(first.id).toBe(second.id);
+  expect(await db.models.Payments.count()).toBe(count + 1);
+  expect(await db.models.AuditLogs.count({ where: { action: 'payments.create' } })).toBe(audit + 1);
+  await expect(
+    payments.create(session.token, session.csrfToken, { ...values, amountCents: 2 }, key),
+  ).rejects.toMatchObject({ status: 409 });
+  await acceptMethod('cash', false);
+  expect((await payments.create(session.token, session.csrfToken, values, key)).id).toBe(first.id);
+  await expect(
+    payments.create(session.token, session.csrfToken, values, randomUUID()),
+  ).rejects.toMatchObject({ status: 422 });
+  expect((await payments.summary({ from: values.date, to: values.date })).days[0].totalCents).toBe(
+    1,
+  );
+  await acceptMethod('cash');
+});
+
+test('paiements : refus des montants invalides, patient inactif, moyen non accepté et CSRF', async () => {
+  await acceptMethod('cash');
+  await acceptMethod('transfer', false);
+  const patient = await paymentPatient();
+  const values = paymentValues(patient.id);
+  const before = await snapshot();
+  for (const invalid of [
+    { ...values, amountCents: 0 },
+    { ...values, amountCents: -1 },
+    { ...values, amountCents: 1.5 },
+    { ...values, amountCents: 100000000 },
+    { ...values, date: '2026-02-30' },
+    { ...values, method: 'bitcoin' },
+    { ...values, method: 'transfer' },
+    { ...values, patientId: randomUUID() },
+    { ...values, note: 'interdit' },
+  ]) {
+    await expect(
+      payments.create(session.token, session.csrfToken, invalid, randomUUID()),
+    ).rejects.toMatchObject({ status: 422 });
+  }
+  await expect(payments.create(session.token, session.csrfToken, values, '')).rejects.toMatchObject(
+    { status: 422 },
+  );
+  expect(await snapshot()).toEqual(before);
+  const denied = await request(app)
+    .post('/api/v1/payments')
+    .set('Origin', config.publicUrl)
+    .set('Cookie', 'osteopilot.access=' + session.token)
+    .set('X-CSRF-Token', 'invalid')
+    .set('Idempotency-Key', randomUUID())
+    .send(values);
+  expect(denied.status).toBe(403);
+  await patients.setActive(session.token, session.csrfToken, patient.id, {
+    active: false,
+    version: 1,
+  });
+  await expect(
+    payments.create(session.token, session.csrfToken, values, randomUUID()),
+  ).rejects.toMatchObject({ status: 422 });
+  await expect(payments.summary({ from: '2026-01-01', to: '2026-12-31' })).rejects.toMatchObject({
+    status: 422,
+  });
+  await expect(payments.list({ date: values.date, limit: 101 })).rejects.toMatchObject({
+    status: 422,
+  });
+});
+
+test('paiement : panne audit après insertion annule paiement et clé idempotente', async () => {
+  const patient = await paymentPatient();
+  await acceptMethod('cash');
+  const before = await snapshot();
+  const original = db.models.AuditLogs.create.bind(db.models.AuditLogs);
+  jest.spyOn(db.models.AuditLogs, 'create').mockImplementation(async (values, options) => {
+    expect(await db.models.Payments.count({ transaction: options.transaction })).toBe(
+      before.Payments + 1,
+    );
+    expect(await db.models.IdempotencyKeys.count({ transaction: options.transaction })).toBe(
+      before.IdempotencyKeys + 1,
+    );
+    await original(values, options);
+    throw new Error('Panne audit paiement');
+  });
+  await expect(
+    payments.create(session.token, session.csrfToken, paymentValues(patient.id), randomUUID()),
+  ).rejects.toThrow('Panne audit paiement');
+  expect(await snapshot()).toEqual(before);
+});
+
+test('droits paiements : accès HTTP et service refusés, recherche patient minimale pour la saisie', async () => {
+  const denied = await restrictedUser(['dashboard.read']);
+  const cookie = 'osteopilot.access=' + denied.session.token;
+  expect(
+    (await request(app).get('/api/v1/payments').query({ date: '2026-10-29' }).set('Cookie', cookie))
+      .status,
+  ).toBe(403);
+  expect(
+    (
+      await request(app)
+        .get('/api/v1/payments/summary')
+        .query({ from: '2026-10-01', to: '2026-10-31' })
+        .set('Cookie', cookie)
+    ).status,
+  ).toBe(403);
+  const patient = await paymentPatient();
+  await expect(
+    payments.create(
+      denied.session.token,
+      denied.session.csrfToken,
+      paymentValues(patient.id),
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  const response = await request(app)
+    .post('/api/v1/payments')
+    .set('Origin', config.publicUrl)
+    .set('Cookie', cookie)
+    .set('X-CSRF-Token', denied.session.csrfToken)
+    .set('Idempotency-Key', randomUUID())
+    .send(paymentValues(patient.id));
+  expect(response.status).toBe(403);
+  const writer = await restrictedUser(['dashboard.read', 'payments.create']);
+  const lookup = await request(app)
+    .get('/api/v1/payments/patients')
+    .set('Cookie', 'osteopilot.access=' + writer.session.token)
+    .query({ search: patient.lastName, limit: 5 });
+  expect(lookup.status).toBe(200);
+  expect(lookup.body.data.items).toEqual([
+    { id: patient.id, firstName: patient.firstName, lastName: patient.lastName },
+  ]);
 });

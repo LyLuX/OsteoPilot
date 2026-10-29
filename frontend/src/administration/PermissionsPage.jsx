@@ -2,14 +2,7 @@ import BootstrapForm, { FormControl, FormFeedback } from '../components/Bootstra
 import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
-import {
-  Alert,
-  Panel,
-  PageTitle,
-  ResourceState,
-  useResource,
-  useTask,
-} from '../components/shared.jsx';
+import { Panel, PageTitle, ResourceState, useResource, useTask } from '../components/shared.jsx';
 function PermissionEditor({ role, permissions, reload }) {
   const { can, user } = useAuth();
   const [ids, setIds] = useState(role.permissionIds);
@@ -28,8 +21,6 @@ function PermissionEditor({ role, permissions, reload }) {
       }}
     >
       <h2>{role.name}</h2>
-      <Alert>{task.error}</Alert>
-      <Alert success>{task.message}</Alert>
       {protectedRole && (
         <p className="muted">
           Consultation seule : rôle protégé ou permission de modification absente.
@@ -58,7 +49,7 @@ function PermissionEditor({ role, permissions, reload }) {
         <FormFeedback name="permissionIds" id="role-permissions-feedback" />
       </fieldset>
       {!protectedRole && (
-        <button className="btn btn-primary" disabled={task.busy}>
+        <button className="btn btn-success" disabled={task.busy}>
           Enregistrer les permissions
         </button>
       )}

@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { NotificationProvider } from '../notifications/Notifications.jsx';
+import { render as renderComponent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, test, expect } from 'vitest';
@@ -49,19 +50,16 @@ test('validation serveur affichée sous le champ de connexion', async () => {
   expect(screen.getByLabelText(/^Adresse email/)).toHaveFocus();
   expect(screen.getByRole('alert')).not.toHaveTextContent('Champs :');
 });
-test('patient : nom/prénom obligatoires et téléphone validé avant la création', async () => {
+test('patient : nom et prénom obligatoires avant la création', async () => {
   mocks.post.mockClear();
   render(
     <MemoryRouter>
       <PatientFormPage />
     </MemoryRouter>,
   );
-  await userEvent.type(screen.getByLabelText(/^Téléphone/), 'invalide');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la fiche' }));
   expect(screen.getByLabelText(/^Nom/)).toHaveClass('is-invalid');
-  expect(screen.getByText('Saisissez un numéro de téléphone valide.')).toHaveClass(
-    'invalid-feedback',
-  );
+  expect(screen.getByLabelText(/^Prénom/)).toHaveClass('is-invalid');
   expect(mocks.post).not.toHaveBeenCalled();
 });
 test('paramétrage : même présentation Bootstrap pour une adresse invalide', async () => {
@@ -111,3 +109,7 @@ test('utilisateur : sélection de rôle requise avec un seul message de groupe',
   await user.click(role);
   expect(screen.queryByText('Sélectionnez au moins un rôle.')).not.toBeInTheDocument();
 });
+
+function render(ui) {
+  return renderComponent(<NotificationProvider>{ui}</NotificationProvider>);
+}

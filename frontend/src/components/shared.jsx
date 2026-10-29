@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { apiFieldErrors, FormControl } from './BootstrapForm.jsx';
 import { api, errorMessage } from '../api/client.js';
+import { useNotifications } from '../notifications/Notifications.jsx';
 export function Alert({ children, success = false }) {
   return children ? (
     <div
@@ -32,21 +33,27 @@ export function Field({ label, name, value, onChange, type = 'text', required = 
   );
 }
 export function useTask() {
+  const notify = useNotifications();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
-  const run = async (work, successMessage) => {
+  const run = async (work, successMessage, tone = 'success') => {
     setBusy(true);
     setError('');
     setMessage('');
     setFieldErrors({});
     try {
       const value = await work();
-      if (successMessage) setMessage(successMessage);
+      if (successMessage && value !== false) {
+        setMessage(successMessage);
+        notify({ message: successMessage, tone });
+      }
       return value;
     } catch (err) {
-      setError(errorMessage(err, { includeFields: false }));
+      const message = errorMessage(err, { includeFields: false });
+      setError(message);
+      notify({ message, tone: 'danger' });
       setFieldErrors(apiFieldErrors(err));
       return undefined;
     } finally {
@@ -55,7 +62,8 @@ export function useTask() {
   };
   return { busy, error, message, fieldErrors, run, setError, setMessage };
 }
-export function useResource(path, params = {}) {
+export function useResource(path, params = {}, enabled = true) {
+  const notify = useNotifications();
   const encoded = JSON.stringify(params);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -64,6 +72,12 @@ export function useResource(path, params = {}) {
   const [fieldErrors, setFieldErrors] = useState({});
   useEffect(() => {
     let active = true;
+    if (!enabled) {
+      setData(null);
+      setLoading(false);
+      setError('');
+      return undefined;
+    }
     setLoading(true);
     setError('');
     setFieldErrors({});
@@ -74,7 +88,9 @@ export function useResource(path, params = {}) {
       })
       .catch((err) => {
         if (active) {
-          setError(errorMessage(err, { includeFields: false }));
+          const message = errorMessage(err, { includeFields: false });
+          setError(message);
+          notify({ message, tone: 'danger' });
           setFieldErrors(apiFieldErrors(err));
         }
       })
@@ -84,13 +100,20 @@ export function useResource(path, params = {}) {
     return () => {
       active = false;
     };
-  }, [path, encoded, revision]);
+  }, [path, encoded, revision, notify, enabled]);
   return { data, error, fieldErrors, loading, reload: () => setRevision((v) => v + 1) };
 }
 export function ResourceState({ resource }) {
   return (
     <>
-      <Alert>{resource.error}</Alert>
+      {resource.error && !resource.loading && (
+        <div className="empty-state">
+          <p>Le chargement a échoué.</p>
+          <button type="button" className="btn btn-outline-secondary" onClick={resource.reload}>
+            Réessayer
+          </button>
+        </div>
+      )}
       {resource.loading && (
         <p role="status" className="muted">
           Chargement…
@@ -128,16 +151,16 @@ export function Panel({ children, className = '' }) {
 }
 export function PageTitle({ eyebrow, title, children }) {
   return (
-    <header className="page-heading">
+    <header className={'page-heading' + (title ? '' : ' page-heading-inline')}>
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
+        {title && <h1>{title}</h1>}
       </div>
       {children}
     </header>
   );
 }
-export function ConfirmDialog({ title, children, onConfirm, onCancel, busy }) {
+export function ConfirmDialog({ title, children, onConfirm, onCancel, busy, tone = 'danger' }) {
   const [node, setNode] = useState(null);
   useEffect(() => {
     if (node && !node.open) node.showModal();
@@ -150,7 +173,7 @@ export function ConfirmDialog({ title, children, onConfirm, onCancel, busy }) {
         <button className="btn btn-outline-secondary" onClick={onCancel} disabled={busy}>
           Annuler
         </button>
-        <button className="btn btn-danger" onClick={onConfirm} disabled={busy}>
+        <button className={'btn btn-' + tone} onClick={onConfirm} disabled={busy}>
           Confirmer
         </button>
       </div>

@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api } from '../api/client.js';
 import {
-  Alert,
   ConfirmDialog,
   Panel,
   PageTitle,
@@ -27,8 +26,6 @@ export default function PatientDetailPage() {
       </PageTitle>
       <Panel>
         <ResourceState resource={resource} />
-        <Alert>{task.error}</Alert>
-        <Alert success>{task.message}</Alert>
         {p && (
           <>
             <h2>
@@ -45,7 +42,7 @@ export default function PatientDetailPage() {
             </dl>
             <div className="actions">
               {can('patients.update') && (
-                <Link className="btn btn-primary" to={'/patients/' + id + '/edit'}>
+                <Link className="btn btn-warning" to={'/patients/' + id + '/edit'}>
                   Modifier
                 </Link>
               )}
@@ -66,6 +63,7 @@ export default function PatientDetailPage() {
               const result = await task.run(
                 () => api.post('/patients/' + id + '/archive', { version: p.version }),
                 'Patient archivé.',
+                'danger',
               );
               if (result) {
                 setConfirm(false);

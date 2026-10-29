@@ -1,3 +1,4 @@
+import { useNotifications } from '../notifications/Notifications.jsx';
 import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 
 const FormValidation = createContext({ errors: {} });
@@ -123,6 +124,7 @@ export default function BootstrapForm({
   ...props
 }) {
   const formRef = useRef(null);
+  const notify = useNotifications();
   const [clientErrors, setClientErrors] = useState({});
   const [dismissed, setDismissed] = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -151,6 +153,10 @@ export default function BootstrapForm({
     setSubmitted(true);
     if (Object.keys(messages).length) {
       focusFirstError(formRef.current, messages);
+      notify({
+        message: 'Veuillez corriger les champs signalés avant de continuer.',
+        tone: 'danger',
+      });
       return;
     }
     onSubmit?.(event);
@@ -179,11 +185,6 @@ export default function BootstrapForm({
           onReset?.(event);
         }}
       >
-        {submitted && Object.keys(clientErrors).length > 0 && (
-          <div className="alert alert-danger w-100" role="alert">
-            Veuillez corriger les champs signalés avant de continuer.
-          </div>
-        )}
         {children}
       </form>
     </FormValidation.Provider>

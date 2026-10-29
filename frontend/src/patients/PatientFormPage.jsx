@@ -2,8 +2,8 @@ import BootstrapForm from '../components/BootstrapForm.jsx';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
+import { createRequestId } from '../api/request-id.js';
 import {
-  Alert,
   Field,
   PageTitle,
   Panel,
@@ -11,17 +11,19 @@ import {
   useResource,
   useTask,
 } from '../components/shared.jsx';
-const empty = { firstName: '', lastName: '', phone: '', email: '', address: '' };
+const empty = { firstName: '', lastName: '' };
+const editableFields = { ...empty, phone: '', email: '', address: '' };
 function PatientForm({ patient }) {
   const [values, setValues] = useState(
-    patient ? Object.fromEntries(Object.keys(empty).map((k) => [k, patient[k]])) : empty,
+    patient ? Object.fromEntries(Object.keys(editableFields).map((k) => [k, patient[k]])) : empty,
   );
   const task = useTask();
-  const key = useRef(crypto.randomUUID());
+  const key = useRef(null);
+  if (key.current === null) key.current = createRequestId();
   const navigate = useNavigate();
   const change = (name, value) => {
     setValues({ ...values, [name]: value });
-    key.current = crypto.randomUUID();
+    key.current = createRequestId();
   };
   const save = async (e) => {
     e.preventDefault();
@@ -34,7 +36,6 @@ function PatientForm({ patient }) {
   };
   return (
     <BootstrapForm errors={task.fieldErrors} onSubmit={save}>
-      <Alert>{task.error}</Alert>
       <div className="form-grid">
         <Field
           label="Nom"
@@ -54,36 +55,40 @@ function PatientForm({ patient }) {
           required
           autoComplete="given-name"
         />
-        <Field
-          label="Téléphone"
-          name="phone"
-          type="tel"
-          value={values.phone}
-          onChange={change}
-          maxLength={30}
-          autoComplete="tel"
-        />
-        <Field
-          label="Email"
-          name="email"
-          type="email"
-          value={values.email}
-          onChange={change}
-          maxLength={254}
-          autoComplete="email"
-        />
-        <Field
-          label="Adresse"
-          name="address"
-          value={values.address}
-          onChange={change}
-          maxLength={300}
-          autoComplete="street-address"
-        />
+        {patient && (
+          <>
+            <Field
+              label="Téléphone"
+              name="phone"
+              type="tel"
+              value={values.phone}
+              onChange={change}
+              maxLength={30}
+              autoComplete="tel"
+            />
+            <Field
+              label="Email"
+              name="email"
+              type="email"
+              value={values.email}
+              onChange={change}
+              maxLength={254}
+              autoComplete="email"
+            />
+            <Field
+              label="Adresse"
+              name="address"
+              value={values.address}
+              onChange={change}
+              maxLength={300}
+              autoComplete="street-address"
+            />
+          </>
+        )}
       </div>
-      <p className="muted">* Champs obligatoires. Coordonnées administratives uniquement.</p>
+      <p className="muted">* Champs obligatoires.</p>
       <div className="actions">
-        <button className="btn btn-primary" disabled={task.busy}>
+        <button className="btn btn-success" disabled={task.busy}>
           {task.busy ? 'Enregistrement…' : 'Enregistrer la fiche'}
         </button>
         <Link className="btn btn-outline-secondary" to="/patients">

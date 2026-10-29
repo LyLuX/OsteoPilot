@@ -11,6 +11,9 @@ export const patientInput = z
   })
   .strict();
 export const patientUpdate = patientInput.extend({ version: z.number().int().positive() });
+export const patientStatus = z
+  .object({ active: z.boolean(), version: z.number().int().positive() })
+  .strict();
 export const patientQuery = z
   .object({
     ...paging,

@@ -1,7 +1,15 @@
+import {
+  paymentInput,
+  paymentQuery,
+  paymentSummaryQuery,
+  paymentPatientQuery,
+} from '../modules/payments/payment.validator.js';
+import { paymentMethodChangeInput } from '../modules/administration/payment-methods.js';
 import { z, name, email, password, uuid } from '../core/validation.js';
 import {
   patientInput,
   patientUpdate,
+  patientStatus,
   patientQuery,
 } from '../modules/patients/patient.validator.js';
 import {
@@ -15,6 +23,40 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'get',
+    path: '/payments/summary',
+    permission: 'payments.read',
+    query: paymentSummaryQuery,
+    action: 'paymentsSummary',
+    summary: 'Totaux journaliers par moyen de paiement sur 62 jours maximum',
+  },
+  {
+    method: 'get',
+    path: '/payments/patients',
+    permission: 'payments.create',
+    query: paymentPatientQuery,
+    action: 'paymentPatients',
+    summary: 'Rechercher les patients actifs pour un paiement (identité minimale)',
+  },
+  {
+    method: 'get',
+    path: '/payments',
+    permission: 'payments.read',
+    query: paymentQuery,
+    action: 'paymentsList',
+    summary: 'Lister les paiements du jour avec pagination',
+  },
+  {
+    method: 'post',
+    path: '/payments',
+    permission: 'payments.create',
+    body: paymentInput,
+    idempotent: true,
+    status: 201,
+    action: 'paymentsCreate',
+    summary: 'Enregistrer un paiement et son audit, sans doublon au rejeu',
+  },
   {
     method: 'post',
     path: '/auth/login',
@@ -105,6 +147,14 @@ export const routes = [
     action: 'patientArchive',
     summary: 'Archiver un patient',
   },
+  {
+    method: 'patch',
+    path: '/patients/:id/status',
+    permission: 'patients.archive',
+    body: patientStatus,
+    action: 'patientStatus',
+    summary: 'Activer ou désactiver un patient avec contrôle de version',
+  },
   ...['users', 'roles', 'permissions'].map((kind) => ({
     method: 'get',
     path: '/' + kind,
@@ -168,7 +218,15 @@ export const routes = [
     permission: 'settings.update',
     body: settingsInput,
     action: 'settingsUpdate',
-    summary: 'Modifier le paramétrage',
+    summary: 'Modifier les informations générales du cabinet',
+  },
+  {
+    method: 'patch',
+    path: '/settings/payment-methods',
+    permission: 'settings.update',
+    body: paymentMethodChangeInput,
+    action: 'paymentMethodUpdate',
+    summary: 'Accepter ou refuser un moyen de paiement indépendamment des informations du cabinet',
   },
   {
     method: 'get',

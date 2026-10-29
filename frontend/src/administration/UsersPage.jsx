@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import {
-  Alert,
   Field,
   Panel,
   PageTitle,
@@ -20,7 +19,6 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
   return (
     <Panel>
       <h2>{selected ? 'Modifier le compte' : 'Créer un utilisateur'}</h2>
-      <Alert>{task.error}</Alert>
       <BootstrapForm
         errors={task.fieldErrors}
         validate={(form) =>
@@ -122,7 +120,7 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
           Une modification révoque les sessions existantes de cet utilisateur.
         </p>
         <div className="actions">
-          <button className="btn btn-primary" disabled={task.busy}>
+          <button className="btn btn-success" disabled={task.busy}>
             Enregistrer
           </button>
           <button type="button" className="btn btn-outline-secondary" onClick={onCancel}>
@@ -143,7 +141,7 @@ export default function UsersPage() {
     <>
       <PageTitle eyebrow="Administration" title="Utilisateurs">
         {can('users.create') && can('roles.read') && (
-          <button className="btn btn-primary" onClick={() => setEditing(null)}>
+          <button className="btn btn-success" onClick={() => setEditing(null)}>
             + Créer un utilisateur
           </button>
         )}
@@ -179,7 +177,7 @@ export default function UsersPage() {
                 can('roles.read') &&
                 u.id !== user.id &&
                 !u.roles.includes('ADMIN') && (
-                  <button className="btn btn-outline-secondary" onClick={() => setEditing(u)}>
+                  <button className="btn btn-outline-warning" onClick={() => setEditing(u)}>
                     Modifier
                   </button>
                 )}

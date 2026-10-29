@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import {
-  Alert,
   Field,
   Panel,
   PageTitle,
@@ -24,7 +23,7 @@ export default function RolesPage() {
       <PageTitle eyebrow="Administration" title="Rôles">
         {can('roles.create') && (
           <button
-            className="btn btn-primary"
+            className="btn btn-success"
             onClick={() => {
               setName('');
               setEditing(null);
@@ -34,8 +33,6 @@ export default function RolesPage() {
           </button>
         )}
       </PageTitle>
-      <Alert>{task.error}</Alert>
-      <Alert success>{task.message}</Alert>
       {editing !== undefined && (
         <Panel>
           <BootstrapForm
@@ -65,7 +62,7 @@ export default function RolesPage() {
               required
             />
             <div className="actions">
-              <button className="btn btn-primary" disabled={task.busy}>
+              <button className="btn btn-success" disabled={task.busy}>
                 Enregistrer
               </button>
               <button
@@ -92,7 +89,7 @@ export default function RolesPage() {
               </div>
               {can('roles.update') && !r.system && !user.roleIds.includes(r.id) && (
                 <button
-                  className="btn btn-outline-secondary"
+                  className="btn btn-outline-warning"
                   onClick={() => {
                     setName(r.name);
                     setEditing(r);

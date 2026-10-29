@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { NotificationProvider } from '../notifications/Notifications.jsx';
+import { render as renderComponent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, test, expect } from 'vitest';
@@ -45,4 +46,24 @@ test('œil accessible : afficher et masquer sans perdre la saisie ni soumettre',
   expect(input).toHaveAttribute('type', 'password');
   expect(input).toHaveValue('Phrase de test');
   expect(login).not.toHaveBeenCalled();
+});
+
+function render(ui) {
+  return renderComponent(<NotificationProvider>{ui}</NotificationProvider>);
+}
+
+test('connexion réussie : bouton et notification verts', async () => {
+  login.mockResolvedValue(undefined);
+  render(
+    <MemoryRouter>
+      <LoginPage />
+    </MemoryRouter>,
+  );
+  const button = screen.getByRole('button', { name: /Se connecter/ });
+  expect(button).toHaveClass('btn-success');
+  await userEvent.type(screen.getByLabelText(/Adresse email/), 'test@example.invalid');
+  await userEvent.type(screen.getByLabelText(/Mot de passe/), 'test-password');
+  await userEvent.click(button);
+  expect(await screen.findByRole('status')).toHaveClass('bg-success-subtle');
+  expect(screen.getByRole('status')).toHaveTextContent('Connexion réussie.');
 });

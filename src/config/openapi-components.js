@@ -1,3 +1,4 @@
+import { paymentMethodCodes } from '../modules/administration/payment-methods.js';
 export const components = {
   securitySchemes: { session: { type: 'apiKey', in: 'cookie', name: 'osteopilot.access' } },
   schemas: {
@@ -38,7 +39,11 @@ export const components = {
         phone: { type: 'string' },
         email: { type: 'string' },
         address: { type: 'string' },
-        archived: { type: 'boolean' },
+        archived: {
+          type: 'boolean',
+          description:
+            'Patient inactif si true. Le statut est modifiable avec patients.archive et une version courante.',
+        },
         version: { type: 'integer' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -90,6 +95,75 @@ export const components = {
         ['page', 'limit', 'total', 'totalPages'].map((p) => [p, { type: 'integer' }]),
       ),
     },
+    PaymentPatient: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id', 'firstName', 'lastName'],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        firstName: { type: 'string' },
+        lastName: { type: 'string' },
+      },
+    },
+    Payment: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id', 'patientId', 'date', 'method', 'amountCents', 'createdAt'],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        patientId: { type: 'string', format: 'uuid' },
+        date: {
+          type: 'string',
+          format: 'date',
+          description: 'Jour civil du cabinet Europe/Paris, sans conversion UTC.',
+        },
+        method: { type: 'string', enum: paymentMethodCodes },
+        amountCents: { type: 'integer', minimum: 1, maximum: 99999999 },
+        createdAt: { type: 'string', format: 'date-time' },
+        patient: { $ref: '#/components/schemas/PaymentPatient' },
+      },
+    },
+    PaymentSummary: {
+      type: 'object',
+      required: ['days', 'acceptedMethods'],
+      properties: {
+        acceptedMethods: { $ref: '#/components/schemas/PaymentMethods' },
+        days: {
+          type: 'array',
+          maxItems: 62,
+          items: {
+            type: 'object',
+            required: ['date', 'methods', 'totalCents'],
+            properties: {
+              date: { type: 'string', format: 'date' },
+              totalCents: { type: 'integer', minimum: 0 },
+              methods: {
+                type: 'object',
+                additionalProperties: false,
+                required: paymentMethodCodes,
+                properties: Object.fromEntries(
+                  paymentMethodCodes.map((code) => [code, { type: 'integer', minimum: 0 }]),
+                ),
+              },
+            },
+          },
+        },
+      },
+    },
+    PaymentMethods: {
+      type: 'array',
+      maxItems: 4,
+      uniqueItems: true,
+      items: { type: 'string', enum: paymentMethodCodes },
+      description:
+        'Moyens acceptés : cash (Espèces), card (Carte), cheque (Chèque), transfer (Virement). Une liste vide signifie aucun moyen sélectionné.',
+    },
+    PaymentMethodsSettings: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['paymentMethods'],
+      properties: { paymentMethods: { $ref: '#/components/schemas/PaymentMethods' } },
+    },
     Settings: {
       type: 'object',
       properties: {
@@ -99,6 +173,7 @@ export const components = {
         phone: { type: 'string' },
         email: { type: 'string' },
         timezone: { type: 'string', enum: ['Europe/Paris'] },
+        paymentMethods: { $ref: '#/components/schemas/PaymentMethods' },
         updatedAt: { type: 'string', format: 'date-time' },
       },
     },

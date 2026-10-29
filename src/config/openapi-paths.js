@@ -47,6 +47,10 @@ const preview = {
   },
 };
 export function responseSchema(action) {
+  if (action === 'paymentsSummary') return ref('PaymentSummary');
+  if (action === 'paymentsList') return paginated('Payment');
+  if (action === 'paymentPatients') return paginated('PaymentPatient');
+  if (action === 'paymentsCreate') return ref('Payment');
   if (['login', 'me', 'refresh'].includes(action)) return session;
   if (['patientsList', 'usersList', 'rolesList', 'permissionsList', 'history'].includes(action))
     return paginated(
@@ -58,10 +62,15 @@ export function responseSchema(action) {
         history: 'Audit',
       }[action],
     );
-  if (['patientsCreate', 'patientGet', 'patientUpdate', 'patientArchive'].includes(action))
+  if (
+    ['patientsCreate', 'patientGet', 'patientUpdate', 'patientArchive', 'patientStatus'].includes(
+      action,
+    )
+  )
     return ref('Patient');
   if (['userCreate', 'userUpdate'].includes(action)) return ref('User');
   if (['roleCreate', 'roleUpdate'].includes(action)) return ref('Role');
+  if (action === 'paymentMethodUpdate') return ref('PaymentMethodsSettings');
   if (action.startsWith('settings')) return ref('Settings');
   if (action === 'importPreview') return preview;
   if (action === 'importConfirm')
@@ -176,6 +185,12 @@ for (const route of routes) {
     ...(route.body
       ? {
           requestBody: {
+            ...(route.action === 'settingsUpdate'
+              ? {
+                  description:
+                    'Modifie uniquement les informations générales du cabinet. Les moyens de paiement se modifient séparément via PATCH /settings/payment-methods.',
+                }
+              : {}),
             required: true,
             content: { 'application/json': { schema: jsonSchema(route.body) } },
           },

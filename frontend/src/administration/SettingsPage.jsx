@@ -1,9 +1,8 @@
-import BootstrapForm from '../components/BootstrapForm.jsx';
-import { useState } from 'react';
+import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
+import { useId, useRef, useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import {
-  Alert,
   Field,
   Panel,
   PageTitle,
@@ -11,12 +10,18 @@ import {
   useResource,
   useTask,
 } from '../components/shared.jsx';
+const paymentMethods = [
+  { code: 'cash', label: 'Espèces' },
+  { code: 'card', label: 'Carte' },
+  { code: 'cheque', label: 'Chèque' },
+  { code: 'transfer', label: 'Virement' },
+];
 function SettingsForm({ settings }) {
-  const [values, setValues] = useState(
-    Object.fromEntries(
+  const [values, setValues] = useState({
+    ...Object.fromEntries(
       ['name', 'address', 'phone', 'email', 'timezone'].map((key) => [key, settings[key]]),
     ),
-  );
+  });
   const { can } = useAuth();
   const task = useTask();
   const change = (key, value) => setValues({ ...values, [key]: value });
@@ -28,8 +33,6 @@ function SettingsForm({ settings }) {
         task.run(() => api.put('/settings', values), 'Paramètres enregistrés.');
       }}
     >
-      <Alert>{task.error}</Alert>
-      <Alert success>{task.message}</Alert>
       <fieldset disabled={!can('settings.update') || task.busy}>
         <legend className="visually-hidden">Informations du cabinet</legend>
         <div className="form-grid">
@@ -68,9 +71,64 @@ function SettingsForm({ settings }) {
         <p className="muted">
           Fuseau du cabinet : Europe/Paris. Les horodatages sont conservés en UTC.
         </p>
-        {can('settings.update') && <button className="btn btn-primary">Enregistrer</button>}
+        {can('settings.update') && <button className="btn btn-success">Enregistrer</button>}
       </fieldset>
     </BootstrapForm>
+  );
+}
+function PaymentMethodsForm({ settings }) {
+  const feedbackId = useId();
+  const { can } = useAuth();
+  const task = useTask();
+  const pending = useRef(false);
+  const [selected, setSelected] = useState(settings.paymentMethods ?? []);
+  const error = task.fieldErrors.method || task.fieldErrors.accepted;
+  const toggle = async (method, accepted) => {
+    if (pending.current || !can('settings.update')) return;
+    pending.current = true;
+    const previous = selected;
+    setSelected(accepted ? [...previous, method] : previous.filter((code) => code !== method));
+    try {
+      const result = await task.run(
+        () => api.patch('/settings/payment-methods', { method, accepted }),
+        'Moyens de paiement mis à jour.',
+        accepted ? 'success' : 'danger',
+      );
+      setSelected(result?.paymentMethods ?? previous);
+    } finally {
+      pending.current = false;
+    }
+  };
+  return (
+    <fieldset
+      disabled={!can('settings.update') || task.busy}
+      aria-busy={task.busy}
+      aria-describedby={error ? feedbackId : undefined}
+    >
+      <legend className="visually-hidden">Moyens de règlement acceptés</legend>
+      <div className="form-grid">
+        {paymentMethods.map(({ code, label }) => (
+          <label className="check-label" key={code}>
+            <FormControl
+              type="checkbox"
+              name="method"
+              value={code}
+              checked={selected.includes(code)}
+              error={error}
+              feedbackId={feedbackId}
+              showFeedback={false}
+              onChange={(event) => toggle(code, event.target.checked)}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      {error && (
+        <div id={feedbackId} className="invalid-feedback d-block">
+          {error}
+        </div>
+      )}
+    </fieldset>
   );
 }
 export default function SettingsPage() {
@@ -79,10 +137,16 @@ export default function SettingsPage() {
     <>
       <PageTitle eyebrow="Administration" title="Paramétrage" />
       <Panel>
-        <h2>Votre cabinet</h2>
+        <h2>Informations générales</h2>
         <ResourceState resource={resource} />
         {resource.data && <SettingsForm settings={resource.data} />}
       </Panel>
+      {resource.data && (
+        <Panel>
+          <h2>Moyens de paiement</h2>
+          <PaymentMethodsForm settings={resource.data} />
+        </Panel>
+      )}
     </>
   );
 }

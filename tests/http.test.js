@@ -15,7 +15,10 @@ const auth = {
   permit: jest.fn(),
   csrf: jest.fn(),
 };
-const app = createApp({ config, services: { auth, patients: {}, administration: {} } });
+const app = createApp({
+  config,
+  services: { auth, patients: {}, administration: {}, payments: {} },
+});
 test('health minimal et en-têtes', async () => {
   const res = await request(app).get('/health');
   expect(res.status).toBe(200);
@@ -45,7 +48,7 @@ test('erreurs SQL et internes sans détails sensibles', async () => {
     },
   };
   const res = await request(
-    createApp({ config, services: { auth: bad, patients: {}, administration: {} } }),
+    createApp({ config, services: { auth: bad, patients: {}, administration: {}, payments: {} } }),
   ).get('/api/v1/users');
   expect(res.status).toBe(500);
   expect(JSON.stringify(res.body)).not.toMatch(/password|SELECT|secret/);
@@ -87,7 +90,7 @@ test.each(['http://localhost:5174', 'http://127.0.0.1:5174', 'http://osteopilot.
     };
     const server = createApp({
       config: configured,
-      services: { auth: loginAuth, patients: {}, administration: {} },
+      services: { auth: loginAuth, patients: {}, administration: {}, payments: {} },
     });
     const response = await request(server)
       .post('/api/v1/auth/login')
@@ -108,7 +111,7 @@ test.each(['http://osteopilot.org.evil.invalid:5174', 'http://osteopilot.org:300
     const loginAuth = { login: jest.fn(), cookie: jest.fn() };
     const server = createApp({
       config: configured,
-      services: { auth: loginAuth, patients: {}, administration: {} },
+      services: { auth: loginAuth, patients: {}, administration: {}, payments: {} },
     });
     const response = await request(server)
       .post('/api/v1/auth/login')

@@ -10,6 +10,14 @@ export function createEnvironment(source = process.env, { databaseOnly = false }
     if (!Number.isInteger(value) || value < 1 || value > max) errors.push(key + ' invalide.');
     return value;
   };
+  const boolean = (key, fallback) => {
+    const value = source[key];
+    if (value === undefined || value === '') return fallback;
+    if (!['true', 'false'].includes(value)) errors.push(key + ' doit valoir true ou false.');
+    return value === 'true';
+  };
+  const databaseLogging = boolean('DATABASE_LOGGING', false);
+  const httpLogging = boolean('HTTP_LOGGING', true);
   const origin = (value) => {
     try {
       const url = new URL(value);
@@ -57,11 +65,13 @@ export function createEnvironment(source = process.env, { databaseOnly = false }
     port: integer('PORT', 3008, 65535),
     trustedProxies: trusted === 'false' ? false : trusted.split(',').map((s) => s.trim()),
     apiLimit: integer('RATE_LIMIT_API_MAX', 500, 10000),
+    httpLogging: mode === 'development' && httpLogging,
     loginLimit: integer('RATE_LIMIT_LOGIN_MAX', 10, 100),
     database: {
       host: source.DATABASE_HOST || '127.0.0.1',
       port: integer('DATABASE_PORT', 3306, 65535),
       name,
+      logging: mode === 'development' && databaseLogging,
       user: source.DATABASE_USER || '',
       password: source.DATABASE_PASSWORD || '',
     },

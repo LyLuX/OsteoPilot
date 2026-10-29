@@ -1,10 +1,10 @@
 # OsteoPilot
 
-OsteoPilot **0.1.1** gère la patientèle d’un cabinet unique : connexion,
-calendrier mensuel de repérage, coordonnées administratives des patients,
+OsteoPilot **0.2.0** gère la patientèle d’un cabinet unique : connexion,
+calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
-Aucun agenda, rendez-vous, dossier médical, facturation, paiement ou module comptable.
+Aucun agenda, rendez-vous, dossier médical, facturation ou module comptable complet.
 Aucune notion de société ou d’établissement.
 
 ## Environnement
@@ -48,7 +48,7 @@ node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('h
 ```
 
 Ne pas partager la sortie ni copier de secret GreenDesk. `.env` reste ignoré
-par Git ; aucun mot de passe universel dans les exemples. Logs SQL désactivés.
+par Git ; aucun mot de passe universel dans les exemples. Traces SQL désactivées par défaut.
 
 ## Base et migrations
 
@@ -147,6 +147,25 @@ Si Windows demande une autorisation réseau pour Node.js, choisir le réseau pri
 La variable CORS_ORIGINS ci-dessus reste limitée à ce terminal ; pour une configuration
 durable, reporter les origines explicites dans le fichier .env local.
 
+## Notifications et traces de développement
+
+Les notifications utilisent les Toasts CSS et JavaScript de Bootstrap.
+Elles se ferment automatiquement après deux secondes ou via la croix.
+Bootstrap suspend ce délai pendant le survol ou le focus clavier pour laisser
+le temps de lire le message. Les erreurs sous les champs et les rapports CSV
+restent visibles pour permettre leur correction.
+
+En mode development, les requêtes HTTP sont affichées dans le terminal API :
+heure, méthode, route déclarée (avec :id), statut et durée en colonnes alignées.
+Les statuts sont colorés dans un terminal compatible (succès en vert, redirections
+en cyan, erreurs client en jaune et erreurs serveur en rouge). Les sorties redirigées
+et NO_COLOR désactivent les couleurs. HTTP_LOGGING=false désactive ces traces.
+Pour afficher aussi la structure SQL, mettre DATABASE_LOGGING=true dans .env,
+puis redémarrer l’API. Les valeurs SQL et paramètres liés sont masqués.
+Une requête non reconnue est masquée entièrement. Aucun corps, cookie, jeton,
+email, paramètre de recherche ou UUID patient n’est journalisé par les traces HTTP.
+Ces traces HTTP et SQL sont désactivées en test et en production.
+
 ## Contrôles
 
 ```powershell
@@ -229,3 +248,48 @@ pour plusieurs instances. Réserver les droits CREATE/DROP aux tests isolés.
 Voir [conventions](docs/conventions.md), [ajout-module](docs/ajout-module.md),
 [décisions](docs/decisions.md), [confidentialité](docs/confidentialite.md).
 Web app responsive uniquement ; aucune application native ni PWA installable.
+
+Le statut patient peut être modifié dans la liste (filtre Tous par défaut) :
+Désactiver conserve la fiche, Activer la remet en activité. Ces actions utilisent
+la permission patients.archive et PATCH /api/v1/patients/{id}/status avec
+active (booléen) et version (entier positif). La mutation et son audit sont
+committés ensemble ; une version dépassée est refusée avec HTTP 409.
+
+## Moyens de règlement acceptés
+
+Dans Paramétrage, le panneau Moyens de paiement propose Espèces, Carte, Chèque
+et Virement. Chaque case est sauvegardée immédiatement, sans bouton Enregistrer
+et indépendamment du formulaire Informations générales.
+La lecture utilise settings.read et la modification settings.update. Aucun moyen
+n’est présélectionné pour un cabinet existant ; une liste vide est autorisée.
+L’API expose paymentMethods (cash, card, cheque, transfer), limité à quatre codes
+connus sans doublon. PATCH /api/v1/settings/payment-methods reçoit method (code)
+et accepted (booléen), puis renvoie la sélection. La mutation fusionne le changement
+sous verrou, pour préserver les changements simultanés sur les autres cases.
+PUT /api/v1/settings accepte uniquement les informations générales.
+La migration additive 202610290002-settings-payment-methods.js ajoute une colonne
+JSON nullable, sans réinitialiser les informations du cabinet. Exécuter le
+diagnostic et db:migrate avant de démarrer le code mis à jour, puis db:schema:check.
+
+## Paiements du tableau de bord
+
+Chaque case affiche Espèces, Carte, Chèque, Virement et le total en euros. Les
+jours sans paiement affichent zéro ; un chargement ou une erreur ne simule pas
+un solde nul. Le panneau du jour sélectionné présente une liste paginée et le
+bouton Enregistrer un paiement. La modale exige un patient actif, la date civile
+du cabinet, un montant positif (999 999,99 € maximum) et un moyen accepté.
+Les centimes sont des entiers ; aucun calcul de cumul n’utilise des euros flottants.
+Un moyen désactivé reste visible dans les totaux historiques, mais ne peut plus
+être utilisé pour une nouvelle saisie.
+
+Droits : payments.read pour les montants et listes, payments.create pour la saisie
+et la recherche minimale de patients. La migration 202610290003-payments.js les
+affecte au rôle ADMIN ; les rôles personnalisés nécessitent une attribution
+explicite. Aucun droit existant n’accorde implicitement l’accès aux paiements.
+La migration ajoute la table Payments sans modifier la patientèle.
+
+API : GET /api/v1/payments/summary (from/to, 62 jours maximum), GET
+/api/v1/payments (date/page/limit), GET /api/v1/payments/patients (search/page/limit)
+et POST /api/v1/payments. Le POST exige Idempotency-Key, valide le moyen accepté
+et le patient dans la transaction, puis committe paiement, audit minimal et clé
+ensemble. Rejouer la même saisie avec la même clé ne crée aucun doublon.

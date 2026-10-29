@@ -78,12 +78,18 @@ a {
   padding: 0.65rem 1rem;
   font-weight: 600;
 }
-.btn-primary {
+.btn-primary,
+.btn-success {
+  --bs-btn-color: var(--surface);
   --bs-btn-bg: var(--brand-forest);
   --bs-btn-border-color: var(--brand-forest);
   --bs-btn-hover-bg: var(--brand-forest-dark);
   --bs-btn-hover-border-color: var(--brand-forest-dark);
   --bs-btn-active-bg: var(--brand-forest-dark);
+  --bs-btn-active-border-color: var(--brand-forest-dark);
+  --bs-btn-hover-color: var(--surface);
+  --bs-btn-active-color: var(--surface);
+  --bs-btn-disabled-color: var(--surface);
   --bs-btn-disabled-bg: var(--brand-forest);
   --bs-btn-disabled-border-color: var(--brand-forest);
 }
@@ -117,16 +123,20 @@ a {
   font-weight: 700;
   letter-spacing: -0.045em;
 }
+.brand-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
+  display: block;
+  background: var(--surface);
+  border-radius: 0.5rem;
+  padding: 2px;
+  object-fit: contain;
   width: 38px;
   height: 38px;
-  border: 1px solid currentColor;
-  border-radius: 12px;
-  font-size: 1.5rem;
-  font-weight: 350;
-  transform: rotate(-10deg);
+  flex-shrink: 0;
 }
 .skip-link {
   position: fixed;
@@ -190,10 +200,7 @@ a {
   padding: 1rem 0 max(1rem, env(safe-area-inset-bottom));
   font-size: 0.75rem;
   color: var(--muted);
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  text-align: center;
 }
 .page-heading {
   display: flex;
@@ -203,10 +210,22 @@ a {
   flex-wrap: wrap;
   margin-bottom: 1.5rem;
 }
+.page-heading-inline {
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+}
+.page-heading-inline > div {
+  min-width: 0;
+}
+.page-heading-inline .eyebrow {
+  margin: 0;
+}
 .today-label {
   color: var(--muted);
   font-size: 0.8rem;
-  padding-top: 0.4rem;
+  text-align: right;
+  min-width: 0;
 }
 .panel {
   background: var(--surface);
@@ -252,20 +271,6 @@ a {
   gap: 0.75rem;
   flex-wrap: wrap;
   margin-top: 1rem;
-}
-.filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-.filter-bar .field {
-  margin: 0;
-  flex: 1 1 140px;
-}
-.filter-bar .grow {
-  flex: 3 1 230px;
 }
 .check-label {
   display: flex;
@@ -401,16 +406,64 @@ dialog::backdrop {
   justify-content: space-between;
   margin-bottom: 1rem;
 }
-.nav-group {
-  margin: 1.75rem 0;
+.sidebar-navigation {
+  margin-top: 1.5rem;
 }
-.nav-group p {
-  font-size: 0.62rem;
-  letter-spacing: 0.12em;
-  font-weight: 650;
-  text-transform: uppercase;
+.nav-group {
+  margin: 0.35rem 0;
+}
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--sidebar-foreground);
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.nav-group-toggle:hover,
+.nav-group-toggle:focus-visible {
+  background: var(--sidebar-hover);
+}
+.nav-group.current > .nav-group-toggle {
+  background: var(--sidebar-active);
+}
+.nav-group-icon {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 1.2rem;
   color: var(--sidebar-muted);
-  padding: 0 0.9rem;
+}
+.nav-group-label {
+  flex: 1;
+  min-width: 0;
+}
+.nav-chevron {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex-shrink: 0;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+}
+.nav-group-toggle[aria-expanded='true'] .nav-chevron {
+  transform: rotate(225deg);
+}
+.nav-submenu {
+  margin: 0.35rem 0 0.6rem 1.5rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--sidebar-hover);
+}
+.nav-submenu[hidden] {
+  display: none;
 }
 .nav-group a {
   display: flex;
@@ -488,7 +541,7 @@ dialog::backdrop {
   place-items: center;
   font-size: 0.85rem;
 }
-.calendar-day span {
+.calendar-day .day-number {
   display: grid;
   place-items: center;
   width: 32px;
@@ -502,7 +555,7 @@ dialog::backdrop {
 .calendar-day[aria-pressed='true'] {
   background: color-mix(in srgb, var(--brand-leaf) 7%, var(--surface));
 }
-.calendar-day.today span {
+.calendar-day.today .day-number {
   color: var(--surface);
   background: var(--brand-forest);
   font-weight: 700;
@@ -574,6 +627,23 @@ dialog::backdrop {
   font-size: 1.7rem;
   margin-bottom: 0.7rem;
 }
+.login-brand {
+  text-align: center;
+}
+.login-brand img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+.status-badge.inactive {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+}
+.patient-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 .login-card form {
   margin-top: 2rem;
 }
@@ -615,7 +685,7 @@ dialog::backdrop {
   .calendar-panel {
     padding: 1.5rem;
   }
-  .calendar-day span {
+  .calendar-day .day-number {
     width: 36px;
     height: 36px;
   }
@@ -727,4 +797,152 @@ dialog::backdrop {
   justify-content: center;
   min-width: 44px;
   padding: 0.65rem;
+}
+
+.notification-container {
+  z-index: var(--bs-toast-zindex, 1090);
+  max-width: 100%;
+  padding-top: max(1rem, env(safe-area-inset-top)) !important;
+  padding-right: max(1rem, env(safe-area-inset-right)) !important;
+}
+.notification-toast {
+  width: min(350px, calc(100vw - 2rem));
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  --bs-toast-bg: var(--surface);
+}
+.notification-toast .btn-close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.75rem;
+}
+
+.filter-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.filter-panel-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.filter-panel-fields[hidden] {
+  display: none;
+}
+.filter-panel .form-label {
+  min-width: 0;
+  font-size: 0.85rem;
+}
+.filter-panel .form-control,
+.filter-panel .form-select {
+  margin-top: 0.4rem;
+}
+.filter-panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.filter-panel-toggle[aria-expanded='true'] .nav-chevron {
+  transform: rotate(225deg);
+}
+.filter-panel-toggle[aria-expanded='true'] {
+  margin-bottom: 1rem;
+}
+@media (min-width: 576px) {
+  .filter-panel-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .filter-panel-fields {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
+.calendar-day {
+  align-content: start;
+  padding: 0.35rem 0.15rem;
+  min-height: 130px;
+  border-right: 1px solid var(--border);
+}
+.calendar-day-payments {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.3rem;
+}
+.calendar-payment-line {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 0.15rem;
+  font-size: 0.6rem;
+  line-height: 1.6;
+  text-align: left;
+}
+.calendar-payment-line > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.calendar-payment-line abbr {
+  text-decoration: none;
+}
+.calendar-payment-total {
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+  margin-top: 0.2rem;
+  padding-top: 0.15rem;
+}
+.payment-day-total {
+  font-weight: 700;
+  color: var(--brand-forest-dark);
+}
+.payment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.payment-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.payment-list li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.payment-list li > strong {
+  flex-shrink: 0;
+}
+.payment-dialog {
+  width: 540px;
+}
+.payment-dialog .btn-close {
+  min-width: 44px;
+  min-height: 44px;
+}
+@media (min-width: 600px) {
+  .calendar-payment-line {
+    font-size: 0.7rem;
+  }
+  .calendar-day {
+    padding: 0.4rem;
+  }
 }

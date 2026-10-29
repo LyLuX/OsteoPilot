@@ -1,6 +1,25 @@
-import { definitions, indexes } from './schema.js';
-import { migrationName, up } from '../../../migrations/202610290001-initial.js';
 import { assert } from '../errors.js';
+import { definitions, indexes } from './schema.js';
+import {
+  migrationName as initialName,
+  up as initialUp,
+} from '../../../migrations/202610290001-initial.js';
+import {
+  migrationName as paymentsName,
+  up as paymentsUp,
+} from '../../../migrations/202610290002-settings-payment-methods.js';
+import {
+  migrationName as ledgerName,
+  up as ledgerUp,
+} from '../../../migrations/202610290003-payments.js';
+const migrations = [
+  { name: initialName, up: initialUp },
+  { name: paymentsName, up: paymentsUp },
+  { name: ledgerName, up: ledgerUp },
+];
+const knownHistory = (history) =>
+  history.length <= migrations.length &&
+  history.every((name, index) => name === migrations[index].name);
 
 export async function inspectDatabase(db) {
   const [server] = await db.sequelize.query('SELECT VERSION() AS version, DATABASE() AS db');
@@ -29,7 +48,7 @@ const typeName = (s) =>
 export async function checkSchema(db) {
   const state = await inspectDatabase(db);
   assert(
-    state.history.length === 1 && state.history[0] === migrationName,
+    state.history.length === migrations.length && knownHistory(state.history),
     'Schéma : historique inconnu ou migrations en attente. Exécuter db:migrate:status.',
     409,
   );
@@ -141,13 +160,12 @@ export async function migrate(db) {
     assert(rows[0].acquired === 1, 'Une migration est déjà en cours.', 409);
     acquired = true;
     const state = await inspectDatabase(db);
-    if (state.history.length === 1 && state.history[0] === migrationName) return checkSchema(db);
     assert(
-      state.tables.length === 0,
+      knownHistory(state.history) && (state.history.length > 0 || state.tables.length === 0),
       'Schéma : base non vide sans historique reconnu. Diagnostic, sauvegarde et validation humaine obligatoires ; aucune reprise automatique.',
       409,
     );
-    await up(db);
+    for (const migration of migrations.slice(state.history.length)) await migration.up(db);
     return checkSchema(db);
   } finally {
     if (acquired) await query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':osteopilot:migrate'))");

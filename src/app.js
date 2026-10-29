@@ -1,3 +1,4 @@
+import { PaymentService } from './modules/payments/payment.service.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -14,11 +15,13 @@ import { AdministrationService } from './modules/administration/administration.s
 import { version } from './config/version.js';
 import { openapi } from './config/openapi.js';
 import { logDenial } from './core/security-logger.js';
+import { developmentHttpLogging } from './core/logger/http-logging.js';
 
 export function createApp({ db, config, services }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustedProxies);
+  if (config.mode === 'development' && config.httpLogging) app.use(developmentHttpLogging());
   app.use(helmet());
   app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -55,7 +58,8 @@ export function createApp({ db, config, services }) {
   const auth = services?.auth || new AuthService(db, config);
   const patients = services?.patients || new PatientService(db, auth);
   const administration = services?.administration || new AdministrationService(db, auth);
-  const controllers = createControllers({ auth, patients, administration });
+  const payments = services?.payments || new PaymentService(db, auth);
+  const controllers = createControllers({ auth, patients, administration, payments });
   for (const route of routes) {
     app[route.method]('/api/v1' + route.path, async (req, res) => {
       if (!['get', 'head', 'options'].includes(req.method.toLowerCase())) {

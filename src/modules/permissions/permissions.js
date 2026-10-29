@@ -1,5 +1,7 @@
 export const permissions = [
   'dashboard.read',
+  'payments.read',
+  'payments.create',
   'patients.read',
   'patients.create',
   'patients.update',

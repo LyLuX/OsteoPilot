@@ -1,16 +1,35 @@
-import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
-import { useState } from 'react';
+import FilterPanel from '../components/FilterPanel.jsx';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { PageTitle, Panel, useResource, ResourceState, Pagination } from '../components/shared.jsx';
+import {
+  PageTitle,
+  Panel,
+  useResource,
+  ResourceState,
+  Pagination,
+  useTask,
+  ConfirmDialog,
+} from '../components/shared.jsx';
 export default function PatientsPage() {
   const { can } = useAuth();
+  const task = useTask();
+  const [selected, setSelected] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [archived, setArchived] = useState('false');
+  const [archived, setArchived] = useState('all');
   const [sort, setSort] = useState('lastName');
   const [direction, setDirection] = useState('ASC');
+  useEffect(() => {
+    if (search === query) return undefined;
+    const timer = window.setTimeout(() => {
+      setQuery(search);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search, query]);
   const resource = useResource('/patients', {
     page,
     search: query,
@@ -23,85 +42,73 @@ export default function PatientsPage() {
     <>
       <PageTitle eyebrow="Gestion patientèle" title="Patientèle">
         {can('patients.create') && (
-          <Link className="btn btn-primary" to="/patients/new">
+          <Link className="btn btn-success" to="/patients/new">
             + Créer un patient
           </Link>
         )}
       </PageTitle>
+      <FilterPanel
+        errors={resource.fieldErrors}
+        fields={[
+          {
+            name: 'search',
+            type: 'search',
+            ariaLabel: 'Rechercher un patient',
+            value: search,
+            onChange: setSearch,
+            maxLength: 100,
+            placeholder: 'Nom, prénom, email ou téléphone',
+          },
+          {
+            name: 'archived',
+            type: 'select',
+            label: 'Statut',
+            value: archived,
+            onChange: (value) => {
+              setArchived(value);
+              setQuery(search);
+              setPage(1);
+            },
+            options: [
+              { value: 'false', label: 'Actifs' },
+              { value: 'true', label: 'Inactifs' },
+              { value: 'all', label: 'Tous' },
+            ],
+          },
+          {
+            name: 'sort',
+            type: 'select',
+            label: 'Tri',
+            value: sort,
+            onChange: (value) => {
+              setSort(value);
+              setQuery(search);
+              setPage(1);
+            },
+            options: [
+              { value: 'lastName', label: 'Nom' },
+              { value: 'firstName', label: 'Prénom' },
+              { value: 'createdAt', label: 'Création' },
+            ],
+          },
+          {
+            name: 'direction',
+            type: 'select',
+            label: 'Ordre',
+            value: direction,
+            onChange: (value) => {
+              setDirection(value);
+              setQuery(search);
+              setPage(1);
+            },
+            options: [
+              { value: 'ASC', label: 'Croissant' },
+              { value: 'DESC', label: 'Décroissant' },
+            ],
+          },
+        ]}
+      />
       <Panel>
-        <BootstrapForm
-          errors={resource.fieldErrors}
-          className="filter-bar"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setQuery(search);
-            setPage(1);
-          }}
-        >
-          <label className="field grow">
-            <span>Rechercher un patient</span>
-            <FormControl
-              name="search"
-              type="search"
-              className="form-control"
-              value={search}
-              maxLength={100}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nom, prénom, email ou téléphone"
-            />
-          </label>
-          <label className="field">
-            <span>Statut</span>
-            <FormControl
-              as="select"
-              className="form-select"
-              name="archived"
-              value={archived}
-              onChange={(e) => {
-                setArchived(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="false">Actifs</option>
-              <option value="true">Archivés</option>
-              <option value="all">Tous</option>
-            </FormControl>
-          </label>
-          <label className="field">
-            <span>Tri</span>
-            <FormControl
-              as="select"
-              className="form-select"
-              name="sort"
-              value={sort}
-              onChange={(e) => {
-                setSort(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="lastName">Nom</option>
-              <option value="firstName">Prénom</option>
-              <option value="createdAt">Création</option>
-            </FormControl>
-          </label>
-          <label className="field">
-            <span>Ordre</span>
-            <FormControl
-              as="select"
-              className="form-select"
-              name="direction"
-              value={direction}
-              onChange={(e) => {
-                setDirection(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="ASC">Croissant</option>
-              <option value="DESC">Décroissant</option>
-            </FormControl>
-          </label>
-          <button className="btn btn-primary">Rechercher</button>
-        </BootstrapForm>
         <ResourceState resource={resource} />
         {!resource.loading && resource.data?.items.length === 0 && (
           <div className="empty-state">
@@ -118,7 +125,7 @@ export default function PatientsPage() {
                 <th>Téléphone</th>
                 <th>Email</th>
                 <th>Statut</th>
-                <th>Fiche</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -132,12 +139,32 @@ export default function PatientsPage() {
                   <td data-label="Téléphone">{p.phone || '—'}</td>
                   <td data-label="Email">{p.email || '—'}</td>
                   <td data-label="Statut">
-                    <span className="status-badge">{p.archived ? 'Archivé' : 'Actif'}</span>
+                    <span className={'status-badge' + (p.archived ? ' inactive' : '')}>
+                      {p.archived ? 'Inactif' : 'Actif'}
+                    </span>
                   </td>
                   <td>
-                    <Link className="btn btn-outline-secondary" to={'/patients/' + p.id}>
-                      Ouvrir
-                    </Link>
+                    <div className="patient-actions">
+                      <Link className="btn btn-outline-info" to={'/patients/' + p.id}>
+                        Ouvrir
+                      </Link>
+                      {can('patients.archive') && (
+                        <button
+                          type="button"
+                          className={'btn btn-outline-' + (p.archived ? 'success' : 'danger')}
+                          disabled={task.busy}
+                          onClick={() => setSelected(p)}
+                          aria-label={
+                            (p.archived ? 'Activer ' : 'Désactiver ') +
+                            p.lastName +
+                            ' ' +
+                            p.firstName
+                          }
+                        >
+                          {p.archived ? 'Activer' : 'Désactiver'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -146,6 +173,33 @@ export default function PatientsPage() {
         )}
         <Pagination data={resource.data?.pagination} page={page} setPage={setPage} />
       </Panel>
+      {selected && (
+        <ConfirmDialog
+          title={selected.archived ? 'Activer ce patient ?' : 'Désactiver ce patient ?'}
+          tone={selected.archived ? 'success' : 'danger'}
+          busy={task.busy}
+          onCancel={() => setSelected(null)}
+          onConfirm={async () => {
+            const result = await task.run(
+              () =>
+                api.patch('/patients/' + selected.id + '/status', {
+                  active: selected.archived,
+                  version: selected.version,
+                }),
+              selected.archived ? 'Patient activé.' : 'Patient désactivé.',
+              selected.archived ? 'success' : 'danger',
+            );
+            if (result) {
+              setSelected(null);
+              resource.reload();
+            }
+          }}
+        >
+          {selected.archived
+            ? 'Le patient sera de nouveau actif.'
+            : 'La fiche sera conservée. Vous pourrez réactiver le patient à tout moment.'}
+        </ConfirmDialog>
+      )}
     </>
   );
 }

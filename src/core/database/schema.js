@@ -31,12 +31,20 @@ export const definitions = {
     windowAt: { type: D.DATE, allowNull: false },
   },
   Patients: patientAttributes,
+  Payments: {
+    patientId: ref('Patients'),
+    createdBy: ref('Users'),
+    date: { type: D.DATEONLY, allowNull: false },
+    method: { type: D.STRING(12), allowNull: false },
+    amountCents: { type: D.INTEGER.UNSIGNED, allowNull: false },
+  },
   Settings: {
     name: { type: D.STRING(100), allowNull: false },
     address: { type: D.STRING(300), allowNull: false, defaultValue: '' },
     phone: { type: D.STRING(30), allowNull: false, defaultValue: '' },
     email: { type: D.STRING(254), allowNull: false, defaultValue: '' },
     timezone: { type: D.STRING(50), allowNull: false, defaultValue: 'Europe/Paris' },
+    paymentMethods: { type: D.JSON, allowNull: true },
   },
   AuditLogs: auditAttributes,
   IdempotencyKeys: {
@@ -50,6 +58,7 @@ export const indexes = {
   UserRoles: [{ unique: true, fields: ['userId', 'roleId'] }],
   RolePermissions: [{ unique: true, fields: ['roleId', 'permissionId'] }],
   IdempotencyKeys: [{ unique: true, fields: ['userId', 'keyHash'] }],
+  Payments: [{ fields: ['date', 'method'] }, { fields: ['patientId'] }],
   Patients: [{ fields: ['lastName', 'firstName'] }, { fields: ['archived'] }],
   Sessions: [{ fields: ['expiresAt'] }],
   AuditLogs: [

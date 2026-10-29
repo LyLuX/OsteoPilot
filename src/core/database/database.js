@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import { createDatabaseLoggingOptions } from '../logger/database-logging.js';
 import { requireTransaction } from './transaction.js';
 import { definitions, baseAttributes, indexes } from './schema.js';
 
@@ -8,7 +9,7 @@ export function createDatabase(config) {
     host: d.host,
     port: d.port,
     dialect: 'mysql',
-    logging: false,
+    ...createDatabaseLoggingOptions(config),
     timezone: '+00:00',
     pool: { min: 0, max: 5 },
     dialectOptions: { connectTimeout: 5000 },
@@ -47,6 +48,12 @@ export function createDatabase(config) {
     through: RolePermissions,
     foreignKey: 'roleId',
     otherKey: 'permissionId',
+  });
+  models.Payments.belongsTo(models.Patients, {
+    as: 'patient',
+    foreignKey: 'patientId',
+    onDelete: 'RESTRICT',
+    onUpdate: 'RESTRICT',
   });
   return { sequelize, models };
 }

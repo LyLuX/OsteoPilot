@@ -5,12 +5,15 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles/app.css';
 import { AuthProvider } from './auth/AuthContext.jsx';
 import App from './App.jsx';
+import { NotificationProvider } from './notifications/Notifications.jsx';
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <NotificationProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </NotificationProvider>
     </BrowserRouter>
   </StrictMode>,
 );

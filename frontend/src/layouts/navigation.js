@@ -1,12 +1,15 @@
 export const navigation = [
   {
     label: 'Vue d’ensemble',
+    direct: true,
     items: [
       { label: 'Tableau de bord', path: '/dashboard', permission: 'dashboard.read', icon: '▦' },
     ],
   },
   {
     label: 'Gestion patientèle',
+    key: 'patients',
+    icon: '♧',
     items: [
       { label: 'Patientèle', path: '/patients', permission: 'patients.read', icon: '♧' },
       {
@@ -26,6 +29,8 @@ export const navigation = [
   },
   {
     label: 'Administration',
+    key: 'administration',
+    icon: '⚙',
     items: [
       { label: 'Utilisateurs', path: '/administration/users', permission: 'users.read', icon: '♙' },
       {
@@ -45,6 +50,7 @@ export const navigation = [
   },
   {
     label: 'Traçabilité',
+    direct: true,
     items: [{ label: 'Historique', path: '/history', permission: 'history.read', icon: '↺' }],
   },
 ];

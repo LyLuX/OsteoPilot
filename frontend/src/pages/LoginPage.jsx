@@ -2,7 +2,7 @@ import BootstrapForm from '../components/BootstrapForm.jsx';
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { Alert, Field, useTask } from '../components/shared.jsx';
+import { Field, useTask } from '../components/shared.jsx';
 import PasswordInput from '../components/PasswordInput.jsx';
 export default function LoginPage() {
   const auth = useAuth();
@@ -13,15 +13,14 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-card">
-        <p className="eyebrow">Bienvenue dans votre espace</p>
-        <h1>Connexion</h1>
-        <Alert>{auth.notice}</Alert>
-        <Alert>{task.error}</Alert>
+        <h1 className="login-brand">
+          <img src="/osteopilot-mark.png?v=1" alt="OstéoPilot" width="112" height="112" />
+        </h1>
         <BootstrapForm
           errors={task.fieldErrors}
           onSubmit={(e) => {
             e.preventDefault();
-            task.run(() => auth.login(values.email, values.password));
+            task.run(() => auth.login(values.email, values.password), 'Connexion réussie.');
           }}
         >
           <Field
@@ -43,7 +42,7 @@ export default function LoginPage() {
             autoComplete="current-password"
             maxLength={72}
           />
-          <button className="btn btn-primary w-100" disabled={task.busy}>
+          <button className="btn btn-success w-100" disabled={task.busy}>
             {task.busy ? 'Connexion…' : 'Se connecter →'}
           </button>
         </BootstrapForm>
