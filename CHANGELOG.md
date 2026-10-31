@@ -2,6 +2,21 @@
 
 ## Non publié
 
+## 0.6.0 - 2026-10-31
+
+- [PATCH] Le libellé de page et la date dans la barre supérieure gagnent en
+  lisibilité avec un texte plus grand, plus contrasté et semi-gras, ainsi
+  qu’un séparateur mieux espacé, tout en conservant le retour à la ligne mobile.
+
+- [MINOR] Les cinq migrations proposent un retour arrière de développement,
+  une étape à la fois, avec confirmation de la base, verrou partagé et refus
+  en production. Les allers-retours restaurent le schéma par étape et sont
+  vérifiés sur une base MySQL éphémère ; les pertes de données sont documentées.
+
+- [PATCH] Le champ de mot de passe et son bouton œil partagent une bordure
+  continue et cohérente, y compris au focus et en cas d’erreur de validation,
+  sans arrondi intérieur à leur jonction.
+
 ## 0.5.0 - 2026-10-31
 
 - [PATCH] Les lectures HTTP identiques déjà en cours partagent une seule requête,

@@ -1,3 +1,4 @@
+import { finishDown } from '../src/core/database/migration-rollback.js';
 import { randomUUID } from 'node:crypto';
 import { definitions, baseAttributes, indexes } from '../src/core/database/schema.js';
 export const migrationName = '202610290003-payments.js';
@@ -7,7 +8,14 @@ export async function up(db) {
   if (!tables.some((name) => name.toLowerCase() === 'payments')) {
     await qi.createTable(
       'Payments',
-      { ...baseAttributes(), ...definitions.Payments },
+      {
+        ...baseAttributes(),
+        ...Object.fromEntries(
+          Object.entries(definitions.Payments).filter(
+            ([name]) => !['bankDeposited', 'version'].includes(name),
+          ),
+        ),
+      },
       { engine: 'InnoDB', charset: 'utf8mb4', collate: 'utf8mb4_unicode_ci' },
     );
   }
@@ -37,4 +45,11 @@ export async function up(db) {
     }
     await qi.bulkInsert('SequelizeMeta', [{ name: migrationName }], { transaction });
   });
+}
+
+export async function down(db) {
+  const qi = db.sequelize.getQueryInterface();
+  const tables = await qi.showAllTables();
+  if (tables.some((name) => name.toLowerCase() === 'payments')) await qi.dropTable('Payments');
+  await finishDown(db, migrationName, ['payments.read', 'payments.create'], true);
 }

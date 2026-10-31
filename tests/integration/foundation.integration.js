@@ -1,3 +1,4 @@
+import { up as initialUp } from '../../migrations/202610290001-initial.js';
 import { randomUUID } from 'node:crypto';
 import { jest } from '@jest/globals';
 import { execFile } from 'node:child_process';
@@ -5,7 +6,12 @@ import { promisify } from 'node:util';
 import request from 'supertest';
 import { createEnvironment } from '../../src/config/env.js';
 import { createDatabase } from '../../src/core/database/database.js';
-import { checkSchema, migrate } from '../../src/core/database/migrations.js';
+import {
+  checkSchema,
+  migrate,
+  inspectDatabase,
+  undoMigration,
+} from '../../src/core/database/migrations.js';
 import { withTransaction } from '../../src/core/database/transaction.js';
 import { createApp } from '../../src/app.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
@@ -1211,4 +1217,130 @@ test('migration de la vue initiale : mois par défaut et préférences préserv�
   });
   await migrate(db);
   expect((await administration.settings()).defaultCalendarView).toBe('week');
+});
+
+test('down : verrou partagé, historique inconnu et échec DDL sans retrait de l’historique', async () => {
+  const before = (await inspectDatabase(db)).history;
+  const connection = await db.sequelize.connectionManager.getConnection();
+  const query = (sql) =>
+    new Promise((resolve, reject) =>
+      connection.query(sql, (error, rows) => (error ? reject(error) : resolve(rows))),
+    );
+  try {
+    await query("SELECT GET_LOCK(CONCAT(DATABASE(), ':osteopilot:migrate'), 0)");
+    await expect(undoMigration(db, { confirmDatabase: safeName })).rejects.toMatchObject({
+      status: 409,
+    });
+  } finally {
+    await query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':osteopilot:migrate'))");
+    await db.sequelize.connectionManager.releaseConnection(connection);
+  }
+  const qi = db.sequelize.getQueryInterface();
+  await db.sequelize.transaction((transaction) =>
+    qi.bulkInsert('SequelizeMeta', [{ name: 'inconnue.js' }], { transaction }),
+  );
+  try {
+    await expect(undoMigration(db, { confirmDatabase: safeName })).rejects.toMatchObject({
+      status: 409,
+    });
+    expect((await qi.describeTable('Settings')).defaultCalendarView).toBeDefined();
+  } finally {
+    await db.sequelize.transaction((transaction) =>
+      qi.bulkDelete('SequelizeMeta', { name: 'inconnue.js' }, { transaction }),
+    );
+  }
+  jest.spyOn(qi, 'removeColumn').mockRejectedValueOnce(new Error('Panne DDL simulée'));
+  await expect(undoMigration(db, { confirmDatabase: safeName })).rejects.toThrow(
+    'Panne DDL simulée',
+  );
+  expect((await inspectDatabase(db)).history).toEqual(before);
+  jest.spyOn(qi, 'bulkDelete').mockRejectedValueOnce(new Error('Panne historique simulée'));
+  await expect(undoMigration(db, { confirmDatabase: safeName })).rejects.toThrow(
+    'Panne historique simulée',
+  );
+  expect((await inspectDatabase(db)).history).toEqual(before);
+  expect((await qi.describeTable('Settings')).defaultCalendarView).toBeUndefined();
+  // Reprise explicite du même down après DDL partiel.
+  await undoMigration(db, { confirmDatabase: safeName });
+  expect((await inspectDatabase(db)).history).toEqual(before.slice(0, -1));
+  await migrate(db);
+});
+
+test('down/up des cinq migrations : colonnes, données conservées, permissions et reconstruction complète', async () => {
+  const qi = db.sequelize.getQueryInterface();
+  const undo = () => undoMigration(db, { confirmDatabase: safeName });
+  const original = await inspectDatabase(db);
+  const settingsBefore = await administration.settings();
+  const patientsBefore = await db.models.Patients.count();
+  const paymentsBefore = await db.models.Payments.count();
+  expect(paymentsBefore).toBeGreaterThan(0);
+  await undo();
+  expect((await qi.describeTable('Settings')).defaultCalendarView).toBeUndefined();
+  await expect(checkSchema(db)).rejects.toMatchObject({ status: 409 });
+  await migrate(db);
+  expect(await administration.settings()).toEqual({
+    ...settingsBefore,
+    defaultCalendarView: 'month',
+  });
+  await undo();
+  await undo();
+  const columns = await qi.describeTable('Payments');
+  expect(columns.bankDeposited).toBeUndefined();
+  expect(columns.version).toBeUndefined();
+  expect(await db.models.Payments.count()).toBe(paymentsBefore);
+  expect(await db.models.Permissions.count({ where: { name: 'payments.deposit' } })).toBe(0);
+  await migrate(db);
+  expect(await db.models.Payments.count({ where: { bankDeposited: false, version: 1 } })).toBe(
+    paymentsBefore,
+  );
+  const permission = await db.models.Permissions.findOne({ where: { name: 'payments.deposit' } });
+  expect(await db.models.RolePermissions.count({ where: { permissionId: permission.id } })).toBe(1);
+  // Retour complet en ordre inverse ; aucune base autre que celle du runner.
+  for (let remaining = 4; remaining >= 0; remaining--) {
+    const result = await undo();
+    expect(result.undone).toBe(original.history[remaining]);
+    expect(result.history).toEqual(original.history.slice(0, remaining));
+    if (remaining === 2) {
+      expect((await qi.showAllTables()).some((table) => table.toLowerCase() === 'payments')).toBe(
+        false,
+      );
+      expect(
+        await db.models.Permissions.count({
+          where: { name: ['payments.read', 'payments.create', 'payments.deposit'] },
+        }),
+      ).toBe(0);
+      const [memos] = await db.sequelize.query(
+        "SELECT COUNT(*) AS count FROM IdempotencyKeys WHERE JSON_EXTRACT(result, '$.amountCents') IS NOT NULL",
+      );
+      expect(Number(memos[0].count)).toBe(0);
+      expect(await db.models.Patients.count()).toBe(patientsBefore);
+    }
+    if (remaining === 1) {
+      const settings = await qi.describeTable('Settings');
+      expect(settings.paymentMethods).toBeUndefined();
+      expect(settings.defaultCalendarView).toBeUndefined();
+    }
+  }
+  expect((await inspectDatabase(db)).tables).toEqual([]);
+  expect((await undo()).undone).toBeNull();
+  await initialUp(db);
+  const baseline = await qi.describeTable('Settings');
+  expect(baseline.paymentMethods).toBeUndefined();
+  expect(baseline.defaultCalendarView).toBeUndefined();
+  expect((await qi.showAllTables()).some((table) => table.toLowerCase() === 'payments')).toBe(
+    false,
+  );
+  expect(
+    await db.models.Permissions.count({
+      where: { name: ['payments.read', 'payments.create', 'payments.deposit'] },
+    }),
+  ).toBe(0);
+  await migrate(db);
+  await checkSchema(db);
+  expect((await inspectDatabase(db)).history).toEqual(original.history);
+  expect(await db.models.Permissions.count()).toBe(permissions.length);
+  expect(await db.models.Payments.count()).toBe(0);
+  expect((await db.models.Settings.findOne()).defaultCalendarView).toBe('month');
+  await migrate(db);
+  await checkSchema(db);
 });

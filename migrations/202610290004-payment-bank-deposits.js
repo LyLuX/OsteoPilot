@@ -1,3 +1,4 @@
+import { removeColumns, finishDown } from '../src/core/database/migration-rollback.js';
 import { randomUUID } from 'node:crypto';
 import { definitions } from '../src/core/database/schema.js';
 export const migrationName = '202610290004-payment-bank-deposits.js';
@@ -24,4 +25,9 @@ export async function up(db) {
     }
     await qi.bulkInsert('SequelizeMeta', [{ name: migrationName }], { transaction });
   });
+}
+
+export async function down(db) {
+  await removeColumns(db, 'Payments', ['bankDeposited', 'version']);
+  await finishDown(db, migrationName, ['payments.deposit']);
 }

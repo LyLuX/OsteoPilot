@@ -11,7 +11,11 @@ export default function PasswordInput({ label = 'Mot de passe', required = false
         {label}
         {required ? ' *' : ''}
       </label>
-      <div className="input-group has-validation">
+      <div
+        className={
+          'input-group password-input-group' + (validation.message ? ' has-validation' : '')
+        }
+      >
         <input
           {...props}
           id={id}

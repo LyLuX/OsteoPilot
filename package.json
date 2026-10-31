@@ -1,6 +1,6 @@
 {
   "name": "osteopilot-backend",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -18,6 +18,7 @@
     "docs:check": "node scripts/check-docs.js",
     "db:migrate:status": "node scripts/database.js status",
     "db:migrate": "node scripts/database.js migrate",
+    "db:migrate:undo": "node scripts/database.js undo",
     "db:schema:check": "node scripts/database.js check",
     "admin:create": "node scripts/create-admin.js"
   },

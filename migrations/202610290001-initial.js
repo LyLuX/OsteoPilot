@@ -6,7 +6,15 @@ export const migrationName = '202610290001-initial.js';
 export async function up(db) {
   const qi = db.sequelize.getQueryInterface();
   // DDL MySQL : commits implicites, jamais de fausse promesse de rollback.
-  for (const [table, attributes] of Object.entries(definitions)) {
+  for (const [table, currentAttributes] of Object.entries(definitions)) {
+    // Les fonctionnalités suivantes appartiennent aux migrations 002 à 005.
+    if (table === 'Payments') continue;
+    const attributes = Object.fromEntries(
+      Object.entries(currentAttributes).filter(
+        ([field]) =>
+          table !== 'Settings' || !['paymentMethods', 'defaultCalendarView'].includes(field),
+      ),
+    );
     await qi.createTable(
       table,
       { ...baseAttributes(), ...attributes },
@@ -40,7 +48,9 @@ export async function up(db) {
     await qi.bulkInsert('Roles', [{ ...stamp(), id: roleId, name: 'ADMIN', system: true }], {
       transaction,
     });
-    const rows = permissions.map((name) => ({ ...stamp(), name }));
+    const rows = permissions
+      .filter((name) => !name.startsWith('payments.'))
+      .map((name) => ({ ...stamp(), name }));
     await qi.bulkInsert('Permissions', rows, { transaction });
     await qi.bulkInsert(
       'RolePermissions',
@@ -50,4 +60,26 @@ export async function up(db) {
     await qi.bulkInsert('SequelizeMeta', [{ name: migrationName }], { transaction });
   });
 }
-// Pas de down automatique : une restauration requiert une sauvegarde et une décision explicite.
+export async function down(db) {
+  const qi = db.sequelize.getQueryInterface();
+  // Ordre inverse des dépendances, sans désactiver les clés étrangères.
+  const tables = await qi.showAllTables();
+  for (const table of [
+    'IdempotencyKeys',
+    'AuditLogs',
+    'Settings',
+    'Patients',
+    'LoginAttempts',
+    'Sessions',
+    'RolePermissions',
+    'UserRoles',
+    'Permissions',
+    'Roles',
+    'Users',
+    'Locks',
+    'SequelizeMeta',
+  ]) {
+    if (tables.some((name) => name.toLowerCase() === table.toLowerCase()))
+      await qi.dropTable(table);
+  }
+}

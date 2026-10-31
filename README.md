@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.5.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.6.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -75,7 +75,10 @@ Aucune migration automatique au démarrage.
 
 Les DDL MySQL font des commits implicites. En cas de migration interrompue,
 ne pas effacer les tables : arrêter, diagnostiquer et préparer une reprise validée.
-Aucun down destructif fourni. Voir [exploitation](docs/exploitation.md).
+Chaque migration possède un `down`, réservé au développement via
+`npm run db:migrate:undo -- --confirm-database=osteopilot` : une seule étape,
+dans l’ordre inverse. Cette commande peut supprimer des données ; consulter
+la procédure et les pertes détaillées dans [exploitation](docs/exploitation.md).
 
 ## Premier administrateur
 

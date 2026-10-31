@@ -205,13 +205,15 @@ a {
   order: 3;
   flex-basis: 100%;
   min-width: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.5;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .topbar-separator {
-  padding-inline: 0.35rem;
+  color: var(--brand-forest);
+  padding-inline: 0.5rem;
 }
 .user-area {
   display: flex;
@@ -820,11 +822,20 @@ dialog::backdrop {
 }
 
 .password-toggle {
+  --bs-btn-border-color: var(--border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 44px;
   padding: 0.65rem;
+}
+
+.password-input-group > .form-control:focus + .password-toggle {
+  --bs-btn-border-color: var(--brand-leaf);
+}
+.password-input-group > .form-control.is-invalid + .password-toggle {
+  --bs-btn-border-color: var(--bs-form-invalid-border-color);
+  --bs-btn-hover-border-color: var(--bs-form-invalid-border-color);
 }
 
 .notification-container {

@@ -55,5 +55,5 @@ export function createDatabase(config) {
     onDelete: 'RESTRICT',
     onUpdate: 'RESTRICT',
   });
-  return { sequelize, models };
+  return { sequelize, models, mode: config.mode };
 }

@@ -3,29 +3,34 @@ import { definitions, indexes } from './schema.js';
 import {
   migrationName as initialName,
   up as initialUp,
+  down as initialDown,
 } from '../../../migrations/202610290001-initial.js';
 import {
   migrationName as paymentsName,
   up as paymentsUp,
+  down as paymentsDown,
 } from '../../../migrations/202610290002-settings-payment-methods.js';
 import {
   migrationName as ledgerName,
   up as ledgerUp,
+  down as ledgerDown,
 } from '../../../migrations/202610290003-payments.js';
 import {
   migrationName as depositsName,
   up as depositsUp,
+  down as depositsDown,
 } from '../../../migrations/202610290004-payment-bank-deposits.js';
 import {
   migrationName as calendarName,
   up as calendarUp,
+  down as calendarDown,
 } from '../../../migrations/202610310005-calendar-default-view.js';
 const migrations = [
-  { name: initialName, up: initialUp },
-  { name: paymentsName, up: paymentsUp },
-  { name: ledgerName, up: ledgerUp },
-  { name: depositsName, up: depositsUp },
-  { name: calendarName, up: calendarUp },
+  { name: initialName, up: initialUp, down: initialDown },
+  { name: paymentsName, up: paymentsUp, down: paymentsDown },
+  { name: ledgerName, up: ledgerUp, down: ledgerDown },
+  { name: depositsName, up: depositsUp, down: depositsDown },
+  { name: calendarName, up: calendarUp, down: calendarDown },
 ];
 const knownHistory = (history) =>
   history.length <= migrations.length &&
@@ -155,7 +160,7 @@ export async function checkSchema(db) {
   );
   return state;
 }
-export async function migrate(db) {
+async function withMigrationLock(db, work) {
   // Verrou consultatif conservé par une connexion dédiée pendant les DDL.
   const connection = await db.sequelize.connectionManager.getConnection();
   const query = (sql) =>
@@ -169,6 +174,15 @@ export async function migrate(db) {
     );
     assert(rows[0].acquired === 1, 'Une migration est déjà en cours.', 409);
     acquired = true;
+    return await work();
+  } finally {
+    if (acquired) await query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':osteopilot:migrate'))");
+    await db.sequelize.connectionManager.releaseConnection(connection);
+  }
+}
+
+export async function migrate(db) {
+  return withMigrationLock(db, async () => {
     const state = await inspectDatabase(db);
     assert(
       knownHistory(state.history) && (state.history.length > 0 || state.tables.length === 0),
@@ -177,8 +191,44 @@ export async function migrate(db) {
     );
     for (const migration of migrations.slice(state.history.length)) await migration.up(db);
     return checkSchema(db);
-  } finally {
-    if (acquired) await query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':osteopilot:migrate'))");
-    await db.sequelize.connectionManager.releaseConnection(connection);
-  }
+  });
+}
+
+export async function undoMigration(db, { confirmDatabase } = {}) {
+  const database = db.sequelize.getDatabaseName();
+  const isolatedTest =
+    db.mode === 'test' &&
+    /^osteopilot_test_[a-f0-9]{16}$/.test(database) &&
+    process.env.TEST_DATABASE_ISOLATED === database;
+  assert(
+    db.mode === 'development' || isolatedTest,
+    'Retour arrière : réservé au développement et aux tests isolés.',
+    403,
+  );
+  assert(
+    confirmDatabase === database,
+    'Retour arrière : confirmer le nom exact de la base avec --confirm-database=' + database,
+    422,
+  );
+  return withMigrationLock(db, async () => {
+    const state = await inspectDatabase(db);
+    assert(
+      state.database === database &&
+        knownHistory(state.history) &&
+        (state.history.length > 0 || state.tables.length === 0),
+      'Schéma : retour arrière refusé sur un historique inconnu.',
+      409,
+    );
+    const migration = migrations[state.history.length - 1];
+    if (!migration) return { ...state, undone: null };
+    // Le diagnostic précède les DDL. L’historique n’est retiré qu’après les opérations.
+    await migration.down(db);
+    const after = await inspectDatabase(db);
+    assert(
+      knownHistory(after.history) && after.history.length === state.history.length - 1,
+      'Schéma : historique divergent après retour arrière.',
+      409,
+    );
+    return { ...after, undone: migration.name };
+  });
 }
