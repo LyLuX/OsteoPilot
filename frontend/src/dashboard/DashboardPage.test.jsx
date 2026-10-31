@@ -129,7 +129,7 @@ test('chaque jour vide affiche les moyens acceptés à zéro et le total, sélec
   expect(mocks.get).toHaveBeenLastCalledWith('/payments', {
     date: '2026-10-30',
     page: 1,
-    limit: 10,
+    limit: 5,
   });
 });
 
@@ -240,7 +240,7 @@ test('vues semaine et année : périodes, cumuls mensuels et détails du panneau
       from: '2026-10-26',
       to: '2026-11-01',
       page: 1,
-      limit: 10,
+      limit: 5,
     }),
   );
   expect(await screen.findByText(/Total : 6,06/)).toBeInTheDocument();
@@ -265,7 +265,7 @@ test('vues semaine et année : périodes, cumuls mensuels et détails du panneau
       from: '2026-10-01',
       to: '2026-10-31',
       page: 1,
-      limit: 10,
+      limit: 5,
     }),
   );
   expect(screen.getByRole('button', { name: 'Toute l’année' })).toBeInTheDocument();
@@ -280,7 +280,7 @@ test('vues semaine et année : périodes, cumuls mensuels et détails du panneau
     from: '2026-11-01',
     to: '2026-11-30',
     page: 1,
-    limit: 10,
+    limit: 5,
   });
 });
 
@@ -296,7 +296,7 @@ test('changement de vue et de période : retour à la première page, navigation
   await waitFor(() => expect(next).toBeEnabled());
   await userEvent.click(next);
   await waitFor(() =>
-    expect(mocks.get).toHaveBeenCalledWith('/payments', { date: '2026-10-29', page: 2, limit: 10 }),
+    expect(mocks.get).toHaveBeenCalledWith('/payments', { date: '2026-10-29', page: 2, limit: 5 }),
   );
   await userEvent.click(screen.getByRole('button', { name: 'Année', exact: true }));
   await waitFor(() =>
@@ -304,7 +304,7 @@ test('changement de vue et de période : retour à la première page, navigation
       from: '2026-10-01',
       to: '2026-10-31',
       page: 1,
-      limit: 10,
+      limit: 5,
     }),
   );
   await userEvent.click(screen.getByRole('button', { name: 'Année suivante' }));
@@ -321,7 +321,7 @@ test('changement de vue et de période : retour à la première page, navigation
       from: '2026-10-01',
       to: '2026-10-31',
       page: 1,
-      limit: 10,
+      limit: 5,
     }),
   );
 });
@@ -399,7 +399,7 @@ test('chargement lent : aucun ancien total/liste, réponses dépassées ignorée
           patient: { lastName: 'Dépassé', firstName: 'Ancien' },
         },
       ],
-      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      pagination: { page: 1, limit: 5, total: 1, totalPages: 1 },
     });
   });
   expect(within(panel).getByText(/Total : 7\s*€/)).toBeInTheDocument();
@@ -420,7 +420,7 @@ test('dépôt depuis le panneau : statut rafraîchi, montant et jour conservés'
   show();
   const list = await screen.findByRole('list', { name: 'Paiements du jour' });
   expect(within(list).getByText('À déposer')).toBeInTheDocument();
-  await userEvent.click(within(list).getByRole('button', { name: 'Marquer comme déposé' }));
+  await userEvent.click(within(list).getByRole('button', { name: 'Déposer' }));
   expect(await screen.findByText('Déposé en banque')).toBeInTheDocument();
   expect(mocks.patch).toHaveBeenCalledWith('/payments/cash-payment/bank-deposit', {
     bankDeposited: true,

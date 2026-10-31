@@ -23,6 +23,7 @@ export default function PaginationControls({
   onLimitChange,
   onPageChange,
   itemLabel = 'résultat(s)',
+  showPageSummary = true,
   disabled = false,
 }) {
   if (!pagination) return null;
@@ -59,7 +60,12 @@ export default function PaginationControls({
   return (
     <div className="pagination-controls mt-2 text-body-secondary small">
       <span className="pagination-summary">
-        {pagination.total} {itemLabel}, page {pagination.page} sur {pagination.totalPages}
+        {pagination.total} {itemLabel}
+        {showPageSummary && (
+          <>
+            , page {pagination.page} sur {pagination.totalPages}
+          </>
+        )}
       </span>
       <nav aria-label="Navigation entre les pages" className="pagination-direct-access">
         <ul className="pagination osteopilot-pagination mb-0">

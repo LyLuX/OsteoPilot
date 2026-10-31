@@ -1,5 +1,6 @@
 import PaginationControls from './PaginationControls.jsx';
-import { useEffect, useId, useState } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useState } from 'react';
+import { PageHeadingContext } from './PageHeadingContext.js';
 import { apiFieldErrors, FormControl } from './BootstrapForm.jsx';
 import { api, errorMessage } from '../api/client.js';
 import { useNotifications } from '../notifications/Notifications.jsx';
@@ -136,7 +137,16 @@ export function usePagination(initialLimit = 25) {
   const [limit, setLimit] = useState(initialLimit);
   return { page, setPage, limit, setLimit };
 }
-export function Pagination({ data, page, setPage, limit, setLimit, disabled = false, itemLabel }) {
+export function Pagination({
+  data,
+  page,
+  setPage,
+  limit,
+  setLimit,
+  disabled = false,
+  itemLabel,
+  showPageSummary = true,
+}) {
   return (
     <PaginationControls
       pagination={data ? { ...data, page, limit } : undefined}
@@ -144,6 +154,7 @@ export function Pagination({ data, page, setPage, limit, setLimit, disabled = fa
       onPageChange={setPage}
       disabled={disabled}
       itemLabel={itemLabel}
+      showPageSummary={showPageSummary}
       onLimitChange={(value) => {
         setLimit(value);
         setPage(1);
@@ -155,10 +166,17 @@ export function Panel({ children, className = '' }) {
   return <section className={'panel ' + className}>{children}</section>;
 }
 export function PageTitle({ eyebrow, title, children }) {
+  const setHeading = useContext(PageHeadingContext);
+  useLayoutEffect(() => {
+    if (!setHeading) return undefined;
+    setHeading(eyebrow);
+    return () => setHeading('');
+  }, [eyebrow, setHeading]);
+  if (setHeading && !title && !children) return null;
   return (
     <header className={'page-heading' + (title ? '' : ' page-heading-inline')}>
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {!setHeading && <p className="eyebrow">{eyebrow}</p>}
         {title && <h1>{title}</h1>}
       </div>
       {children}

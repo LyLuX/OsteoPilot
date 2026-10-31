@@ -1,5 +1,6 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { PageTitle } from '../components/shared.jsx';
 import { vi, test, expect } from 'vitest';
 import AppLayout from './AppLayout.jsx';
 import { NotificationProvider } from '../notifications/Notifications.jsx';
@@ -38,4 +39,40 @@ test('déconnexion réussie : bouton et notification rouges sans titre d’état
   expect(toast).toHaveTextContent('Vous êtes déconnecté.');
   expect(toast).toHaveClass('bg-danger-subtle');
   expect(screen.queryByText('Erreur')).not.toBeInTheDocument();
+});
+
+test('libellé de page dans la topbar, date de Paris et synchronisation lors de la navigation', async () => {
+  render(
+    <MemoryRouter initialEntries={['/dashboard']}>
+      <Routes>
+        <Route element={<AppLayout now={new Date('2026-10-30T23:30:00Z')} />}>
+          <Route
+            path="/dashboard"
+            element={
+              <>
+                <PageTitle eyebrow="Votre espace au quotidien" />
+                <Link to="/administration/settings">Ouvrir le paramétrage</Link>
+              </>
+            }
+          />
+          <Route
+            path="/administration/settings"
+            element={<PageTitle eyebrow="Administration" title="Paramétrage" />}
+          />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+  const topbar = document.querySelector('.topbar-label');
+  expect(topbar).toHaveTextContent('Votre espace au quotidien · samedi 31 octobre 2026');
+  expect(topbar.querySelector('time')).toHaveTextContent('samedi 31 octobre 2026');
+  expect(topbar.querySelector('.topbar-separator')).toHaveAttribute('aria-hidden', 'true');
+  const main = screen.getByRole('main');
+  expect(main.querySelector('.eyebrow')).toBeNull();
+  expect(main.querySelector('.page-heading')).toBeNull();
+  fireEvent.click(screen.getByRole('link', { name: 'Ouvrir le paramétrage' }));
+  expect(await within(main).findByRole('heading', { name: 'Paramétrage' })).toBeInTheDocument();
+  expect(topbar).toHaveTextContent('Administration · samedi 31 octobre 2026');
+  expect(topbar).not.toHaveTextContent('Votre espace au quotidien');
+  expect(main.querySelector('.eyebrow')).toBeNull();
 });

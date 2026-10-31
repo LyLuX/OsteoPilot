@@ -2,6 +2,29 @@
 
 ## Non publié
 
+## 0.4.1 - 2026-10-31
+
+- [PATCH] Le bouton de consultation de toute la semaine, du mois ou de l’année
+  apparaît sous « Enregistrer un paiement », en bleu contrasté sur toute la
+  largeur du panneau.
+
+- [PATCH] Le libellé de section des pages apparaît dans la barre supérieure
+  à la place de « Gestion du cabinet », suivi de la date du jour à Paris avec
+  un séparateur visuel. Le bloc redondant du dashboard est retiré et ce repère
+  reste visible sur mobile.
+
+- [PATCH] Le panneau des paiements du dashboard affiche cinq enregistrements
+  par page par défaut, avec le choix de taille de page toujours disponible.
+
+- [PATCH] Le suivi du dépôt utilise un bouton compact « Déposer » et un badge
+  plus discret, alignés aux deux extrémités d’une même ligne ; l’annulation reste accessible
+  avec un libellé court et les cibles tactiles sont conservées. Le badge et le
+  bouton partagent les mêmes couleurs, jaunes à déposer et vertes une fois déposé.
+
+- [PATCH] Dans le panneau des paiements du dashboard, le résumé de pagination
+  affiche seulement le nombre de paiements, sans « page X sur Y » ; les commandes
+  de navigation entre les pages sont conservées.
+
 ## 0.4.0 - 2026-10-29
 
 - [MINOR] Les paiements en espèces et par chèque disposent d’un statut de dépôt

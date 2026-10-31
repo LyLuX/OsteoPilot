@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import SidebarNavigation from './SidebarNavigation.jsx';
 import { useTask } from '../components/shared.jsx';
 import metadata from '../../package.json';
+import { PageHeadingContext } from '../components/PageHeadingContext.js';
 function BrandIdentity() {
   return (
     <span className="brand-identity">
@@ -12,7 +13,15 @@ function BrandIdentity() {
     </span>
   );
 }
-export default function AppLayout() {
+export default function AppLayout({ now = new Date() }) {
+  const [heading, setHeading] = useState('');
+  const date = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(now);
   const auth = useAuth();
   const task = useTask();
   const [open, setOpen] = useState(false);
@@ -73,7 +82,14 @@ export default function AppLayout() {
           >
             ☰ Menu
           </button>
-          <span className="topbar-label">Gestion du cabinet</span>
+          <span className="topbar-label">
+            {heading || 'OstéoPilot'}
+            <span className="topbar-separator" aria-hidden="true">
+              {' '}
+              ·{' '}
+            </span>
+            <time>{date}</time>
+          </span>
           <div className="user-area">
             <span className="avatar" aria-hidden="true">
               {auth.user.firstName.slice(0, 1)}
@@ -92,7 +108,9 @@ export default function AppLayout() {
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
-          <Outlet />
+          <PageHeadingContext.Provider value={setHeading}>
+            <Outlet />
+          </PageHeadingContext.Provider>
         </main>
         <footer>OstéoPilot · v{metadata.version}</footer>
       </div>

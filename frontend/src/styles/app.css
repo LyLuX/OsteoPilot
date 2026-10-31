@@ -175,16 +175,28 @@ a {
   border-bottom: 1px solid var(--border);
   min-height: 76px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem max(0.75rem, env(safe-area-inset-right)) 0.75rem
     max(0.75rem, env(safe-area-inset-left));
 }
-.topbar-label,
 .user-name,
 .avatar {
   display: none;
+}
+.topbar-label {
+  order: 3;
+  flex-basis: 100%;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.topbar-separator {
+  padding-inline: 0.35rem;
 }
 .user-area {
   display: flex;
@@ -232,12 +244,6 @@ a {
 }
 .page-heading-inline .eyebrow {
   margin: 0;
-}
-.today-label {
-  color: var(--muted);
-  font-size: 0.8rem;
-  text-align: right;
-  min-width: 0;
 }
 .panel {
   background: var(--surface);
@@ -739,9 +745,8 @@ dialog::backdrop {
     padding: 1rem 2rem;
   }
   .topbar-label {
-    display: inline;
-    color: var(--muted);
-    font-size: 0.8rem;
+    order: 0;
+    flex: 1;
   }
   .workspace main {
     padding: 2rem;
@@ -1169,25 +1174,68 @@ dialog::backdrop {
   }
 }
 
+.payment-deposit-control {
+  --deposit-status-color: var(--accent-amber);
+  --deposit-status-background: color-mix(in srgb, var(--deposit-status-color) 12%, var(--surface));
+}
+.payment-deposit-control--deposited {
+  --deposit-status-color: var(--brand-forest-dark);
+}
+.payment-deposit-button {
+  --bs-btn-color: var(--deposit-status-color);
+  --bs-btn-bg: var(--deposit-status-background);
+  --bs-btn-border-color: var(--deposit-status-background);
+  --bs-btn-hover-color: var(--deposit-status-color);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--deposit-status-color) 20%, var(--surface));
+  --bs-btn-hover-border-color: var(--deposit-status-color);
+  --bs-btn-active-color: var(--deposit-status-color);
+  --bs-btn-active-bg: var(--bs-btn-hover-bg);
+  --bs-btn-active-border-color: var(--deposit-status-color);
+  --bs-btn-disabled-color: var(--deposit-status-color);
+  --bs-btn-disabled-bg: var(--deposit-status-background);
+  --bs-btn-disabled-border-color: var(--deposit-status-background);
+}
 .payment-list .payment-deposit-control {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  gap: 0.35rem;
   flex-basis: 100%;
 }
 .payment-deposit-control .btn {
   width: auto;
   min-height: 44px;
   margin: 0;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .payment-deposit-status {
-  --deposit-status-color: var(--accent-amber);
   color: var(--deposit-status-color);
-  background: color-mix(in srgb, var(--deposit-status-color) 12%, var(--surface));
-  padding: 0.4rem 0.5rem;
-  white-space: normal;
+  background: var(--deposit-status-background);
+  padding: 0.2rem 0.4rem;
+  font-size: 0.65rem;
+  line-height: 1.3;
+  white-space: nowrap;
 }
-.payment-deposit-status--deposited {
-  --deposit-status-color: var(--brand-forest-dark);
+
+@media (hover: hover) and (pointer: fine) {
+  .payment-deposit-control .btn {
+    min-height: 28px;
+  }
+}
+
+.payment-period-overview {
+  --bs-btn-color: var(--surface);
+  --bs-btn-bg: var(--accent-blue);
+  --bs-btn-border-color: var(--accent-blue);
+  --bs-btn-hover-color: var(--surface);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--accent-blue) 85%, var(--ink));
+  --bs-btn-hover-border-color: var(--bs-btn-hover-bg);
+  --bs-btn-active-color: var(--surface);
+  --bs-btn-active-bg: var(--bs-btn-hover-bg);
+  --bs-btn-active-border-color: var(--bs-btn-hover-bg);
 }

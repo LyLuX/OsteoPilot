@@ -29,7 +29,7 @@ test.each(['cash', 'cheque'])(
     const onSaved = vi.fn();
     const view = show({ payment: { ...payment, method }, onSaved });
     expect(screen.getByText('À déposer')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Marquer comme déposé' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(mocks.patch).toHaveBeenCalledWith('/payments/' + payment.id + '/bank-deposit', {
       bankDeposited: true,
@@ -73,11 +73,11 @@ test('échec : statut inchangé et message Bootstrap rouge', async () => {
   });
   const onSaved = vi.fn();
   show({ onSaved });
-  fireEvent.click(screen.getByRole('button', { name: 'Marquer comme déposé' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Dépôt indisponible.');
   expect(screen.getByText('À déposer')).toBeInTheDocument();
   expect(onSaved).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Marquer comme déposé' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Déposer' })).toBeEnabled();
 });
 test('conflit : actualisation demandée et erreur de concurrence conservée', async () => {
   mocks.patch.mockRejectedValue({
@@ -85,7 +85,7 @@ test('conflit : actualisation demandée et erreur de concurrence conservée', as
   });
   const onSaved = vi.fn();
   show({ onSaved });
-  fireEvent.click(screen.getByRole('button', { name: 'Marquer comme déposé' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Ce paiement a changé.');
   expect(onSaved).toHaveBeenCalledOnce();
 });
@@ -99,7 +99,7 @@ test('requête en cours : commande désactivée et double clic sans doublon', as
   );
   const onSaved = vi.fn();
   show({ onSaved });
-  const button = screen.getByRole('button', { name: 'Marquer comme déposé' });
+  const button = screen.getByRole('button', { name: 'Déposer' });
   fireEvent.click(button);
   fireEvent.click(button);
   expect(button).toBeDisabled();

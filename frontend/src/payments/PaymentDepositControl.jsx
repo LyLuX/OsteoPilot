@@ -33,25 +33,30 @@ export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
     }
   };
   return (
-    <div className="payment-deposit-control">
-      <span
-        id={labelId}
-        className={
-          'badge payment-deposit-status ' +
-          (deposited ? 'payment-deposit-status--deposited' : 'payment-deposit-status--pending')
-        }
-      >
+    <div
+      className={
+        'payment-deposit-control' + (deposited ? ' payment-deposit-control--deposited' : '')
+      }
+    >
+      <span id={labelId} className="badge payment-deposit-status">
         {deposited ? 'Déposé en banque' : 'À déposer'}
       </span>
       {canUpdate && (
         <button
           type="button"
-          className="btn btn-warning btn-sm"
+          className="btn btn-sm payment-deposit-button"
           aria-describedby={labelId}
+          aria-label={
+            task.busy ? 'Mise à jour du dépôt' : deposited ? 'Annuler le dépôt' : 'Déposer'
+          }
+          aria-busy={task.busy}
+          title={
+            deposited ? 'Annuler le dépôt en banque' : 'Marquer ce paiement comme déposé en banque'
+          }
           disabled={task.busy}
           onClick={change}
         >
-          {task.busy ? 'Mise à jour…' : deposited ? 'Annuler le dépôt' : 'Marquer comme déposé'}
+          {task.busy ? '…' : deposited ? 'Annuler' : 'Déposer'}
         </button>
       )}
     </div>

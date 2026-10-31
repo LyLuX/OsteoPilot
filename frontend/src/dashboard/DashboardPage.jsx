@@ -66,7 +66,7 @@ export default function DashboardPage({ now }) {
   const grid = useRef(null);
   const period = calendarPeriod(view, selected);
   const cellPrefix = useId();
-  const { page, setPage, limit, setLimit } = usePagination(10);
+  const { page, setPage, limit, setLimit } = usePagination(5);
   const [paymentModal, setPaymentModal] = useState(false);
   const canReadPayments = can('payments.read');
   const summary = useResource(
@@ -182,9 +182,7 @@ export default function DashboardPage({ now }) {
   };
   return (
     <>
-      <PageTitle eyebrow="Votre espace au quotidien">
-        <span className="today-label">{label(today)}</span>
-      </PageTitle>
+      <PageTitle eyebrow="Votre espace au quotidien" />
       <div className="dashboard-grid">
         <Panel className="calendar-panel">
           <div className="calendar-heading">
@@ -326,17 +324,6 @@ export default function DashboardPage({ now }) {
         <div className="dashboard-aside">
           <Panel className="quiet-panel">
             <h3>{detailTitle}</h3>
-            {detail !== 'period' && (
-              <button
-                className="btn btn-light mb-3"
-                onClick={() => {
-                  setDetail('period');
-                  setPage(1);
-                }}
-              >
-                {allLabel}
-              </button>
-            )}
             {canReadPayments ? (
               <>
                 <p className="payment-day-total">
@@ -399,6 +386,7 @@ export default function DashboardPage({ now }) {
                       setLimit={setLimit}
                       disabled={payments.loading}
                       itemLabel="paiement(s)"
+                      showPageSummary={false}
                     />
                   </>
                 )}
@@ -409,6 +397,17 @@ export default function DashboardPage({ now }) {
                     onClick={() => setPaymentModal(true)}
                   >
                     Enregistrer un paiement
+                  </button>
+                )}
+                {detail !== 'period' && (
+                  <button
+                    className="btn btn-info payment-period-overview w-100"
+                    onClick={() => {
+                      setDetail('period');
+                      setPage(1);
+                    }}
+                  >
+                    {allLabel}
                   </button>
                 )}
               </>
