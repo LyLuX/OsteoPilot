@@ -42,7 +42,7 @@ export default function LoginPage() {
             autoComplete="current-password"
             maxLength={72}
           />
-          <button className="btn btn-success w-100" disabled={task.busy}>
+          <button className="btn btn-outline-success w-100" disabled={task.busy}>
             {task.busy ? 'Connexion…' : 'Se connecter →'}
           </button>
         </BootstrapForm>

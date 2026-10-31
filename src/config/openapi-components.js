@@ -1,3 +1,4 @@
+import { calendarViews } from '../modules/administration/calendar-settings.js';
 import { paymentMethodCodes } from '../modules/administration/payment-methods.js';
 export const components = {
   securitySchemes: { session: { type: 'apiKey', in: 'cookie', name: 'osteopilot.access' } },
@@ -187,6 +188,19 @@ export const components = {
       required: ['paymentMethods'],
       properties: { paymentMethods: { $ref: '#/components/schemas/PaymentMethods' } },
     },
+    CalendarSettings: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['defaultCalendarView'],
+      properties: {
+        defaultCalendarView: {
+          type: 'string',
+          enum: calendarViews,
+          default: 'month',
+          description: 'Vue affichée à l’ouverture du dashboard, partagée par le cabinet.',
+        },
+      },
+    },
     Settings: {
       type: 'object',
       properties: {
@@ -197,6 +211,7 @@ export const components = {
         email: { type: 'string' },
         timezone: { type: 'string', enum: ['Europe/Paris'] },
         paymentMethods: { $ref: '#/components/schemas/PaymentMethods' },
+        defaultCalendarView: { type: 'string', enum: calendarViews, default: 'month' },
         updatedAt: { type: 'string', format: 'date-time' },
       },
     },

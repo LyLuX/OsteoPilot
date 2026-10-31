@@ -19,6 +19,7 @@ beforeEach(() => {
     email: '',
     timezone: 'Europe/Paris',
     paymentMethods: ['cash', 'card'],
+    defaultCalendarView: 'month',
   };
   mocks.can.mockReturnValue(true);
   mocks.get.mockImplementation(async () => settings);
@@ -26,7 +27,11 @@ beforeEach(() => {
     settings = { ...settings, ...values };
     return settings;
   });
-  mocks.patch.mockImplementation(async (_, { method, accepted }) => {
+  mocks.patch.mockImplementation(async (path, { method, accepted, defaultCalendarView }) => {
+    if (path === '/settings/calendar') {
+      settings = { ...settings, defaultCalendarView };
+      return { defaultCalendarView };
+    }
     const selected = new Set(settings.paymentMethods);
     if (accepted) selected.add(method);
     else selected.delete(method);
@@ -146,4 +151,65 @@ test('requête en cours : cases verrouillées, puis retour à l’état confirm�
   expect(screen.getByText('Vérifiez ce moyen de paiement.')).toHaveClass('invalid-feedback');
   expect(screen.getAllByText('Vérifiez ce moyen de paiement.')).toHaveLength(1);
   expect(mocks.put).not.toHaveBeenCalled();
+});
+
+test('panneau Calendrier après les moyens de paiement : sauvegarde automatique indépendante et persistée', async () => {
+  const view = show();
+  const select = await screen.findByRole('combobox', { name: 'Vue par défaut' });
+  const panel = screen.getByRole('heading', { name: 'Calendrier' }).closest('section');
+  const methods = screen.getByRole('heading', { name: 'Moyens de paiement' }).closest('section');
+  expect(panel).toHaveClass('panel');
+  expect(panel.parentElement).toHaveClass('settings-options-grid');
+  expect(methods.nextElementSibling).toBe(panel);
+  expect(within(panel).queryByRole('button', { name: 'Enregistrer' })).not.toBeInTheDocument();
+  expect(select).toHaveValue('month');
+  await userEvent.clear(screen.getByLabelText(/Nom du cabinet/));
+  await userEvent.selectOptions(select, 'year');
+  expect(mocks.patch).toHaveBeenCalledWith('/settings/calendar', { defaultCalendarView: 'year' });
+  expect(settings.name).toBe('Cabinet fictif');
+  expect(settings.paymentMethods).toEqual(['cash', 'card']);
+  expect(mocks.put).not.toHaveBeenCalled();
+  expect(
+    screen.getByText('Vue par défaut du calendrier mise à jour.').closest('.toast'),
+  ).toHaveClass('bg-warning-subtle');
+  view.unmount();
+  show();
+  expect(await screen.findByRole('combobox', { name: 'Vue par défaut' })).toHaveValue('year');
+});
+test('calendrier en lecture seule : choix désactivé', async () => {
+  mocks.can.mockReturnValue(false);
+  show();
+  expect(await screen.findByRole('combobox', { name: 'Vue par défaut' })).toBeDisabled();
+  expect(mocks.patch).not.toHaveBeenCalled();
+});
+test('calendrier : verrouillage en cours et retour au choix confirmé avec erreur Bootstrap', async () => {
+  let reject;
+  mocks.patch.mockImplementationOnce(
+    () =>
+      new Promise((_, failed) => {
+        reject = failed;
+      }),
+  );
+  show();
+  const select = await screen.findByRole('combobox', { name: 'Vue par défaut' });
+  await userEvent.selectOptions(select, 'week');
+  expect(select).toBeDisabled();
+  expect(select).toHaveValue('week');
+  expect(screen.getByRole('checkbox', { name: 'Espèces' })).toBeEnabled();
+  await act(async () =>
+    reject({
+      response: {
+        data: {
+          error: {
+            message: 'Sauvegarde impossible.',
+            details: [{ field: 'defaultCalendarView', message: 'Vérifiez la vue.' }],
+          },
+        },
+      },
+    }),
+  );
+  expect(select).toHaveValue('month');
+  expect(select).toBeEnabled();
+  expect(select).toHaveClass('is-invalid');
+  expect(screen.getByText('Vérifiez la vue.')).toHaveClass('invalid-feedback');
 });

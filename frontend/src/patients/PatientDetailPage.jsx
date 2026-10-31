@@ -42,7 +42,7 @@ export default function PatientDetailPage() {
             </dl>
             <div className="actions">
               {can('patients.update') && (
-                <Link className="btn btn-warning" to={'/patients/' + id + '/edit'}>
+                <Link className="btn btn-outline-warning" to={'/patients/' + id + '/edit'}>
                   Modifier
                 </Link>
               )}

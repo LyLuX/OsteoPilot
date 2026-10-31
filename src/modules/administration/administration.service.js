@@ -1,3 +1,4 @@
+import { calendarSettingsInput } from './calendar-settings.js';
 import { paymentMethodChangeInput, paymentMethodCodes } from './payment-methods.js';
 import { SettingsRepository, publicSettings } from './settings.repository.js';
 import bcrypt from 'bcrypt';
@@ -210,6 +211,32 @@ export class AdministrationService {
     const row = await this.settingsRepository.find();
     assert(row, 'Paramètres du cabinet introuvables.', 404);
     return publicSettings(row);
+  }
+  async calendarSettings() {
+    const row = await this.settingsRepository.calendar();
+    assert(row, 'Paramètres du calendrier introuvables.', 404);
+    return { defaultCalendarView: row.defaultCalendarView };
+  }
+  async changeCalendarSettings(token, csrf, values) {
+    const input = parse(calendarSettingsInput, values);
+    return this.auth.write(token, csrf, 'settings.update', async (ctx, tx) => {
+      const row = await this.settingsRepository.find(tx);
+      assert(row, 'Paramètres du cabinet introuvables.', 404);
+      if (row.defaultCalendarView !== input.defaultCalendarView) {
+        await this.settingsRepository.update(row, input, tx);
+        await recordAudit(
+          this.db,
+          {
+            actorId: ctx.user.id,
+            action: 'settings.calendar.update',
+            entity: 'settings',
+            entityId: row.id,
+          },
+          tx,
+        );
+      }
+      return { defaultCalendarView: row.defaultCalendarView };
+    });
   }
   async saveSettings(token, csrf, values) {
     const input = parse(settingsInput, values);

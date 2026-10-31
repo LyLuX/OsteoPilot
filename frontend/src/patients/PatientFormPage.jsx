@@ -88,7 +88,7 @@ function PatientForm({ patient }) {
       </div>
       <p className="muted">* Champs obligatoires.</p>
       <div className="actions">
-        <button className="btn btn-success" disabled={task.busy}>
+        <button className="btn btn-outline-success" disabled={task.busy}>
           {task.busy ? 'Enregistrement…' : 'Enregistrer la fiche'}
         </button>
         <Link className="btn btn-outline-secondary" to="/patients">

@@ -5,6 +5,7 @@ import {
   paymentSummaryQuery,
   paymentPatientQuery,
 } from '../modules/payments/payment.validator.js';
+import { calendarSettingsInput } from '../modules/administration/calendar-settings.js';
 import { paymentMethodChangeInput } from '../modules/administration/payment-methods.js';
 import { z, name, email, password, uuid } from '../core/validation.js';
 import {
@@ -24,6 +25,21 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'get',
+    path: '/settings/calendar',
+    permission: 'dashboard.read',
+    action: 'calendarSettingsGet',
+    summary: 'Lire uniquement la vue initiale du calendrier pour le dashboard',
+  },
+  {
+    method: 'patch',
+    path: '/settings/calendar',
+    permission: 'settings.update',
+    body: calendarSettingsInput,
+    action: 'calendarSettingsUpdate',
+    summary: 'Modifier la vue initiale du calendrier indépendamment des autres paramètres',
+  },
   {
     method: 'patch',
     path: '/payments/:id/bank-deposit',

@@ -121,7 +121,7 @@ function UserEditor({ selected, roles, onSaved, onCancel }) {
           Une modification révoque les sessions existantes de cet utilisateur.
         </p>
         <div className="actions">
-          <button className="btn btn-success" disabled={task.busy}>
+          <button className="btn btn-outline-success" disabled={task.busy}>
             Enregistrer
           </button>
           <button type="button" className="btn btn-outline-secondary" onClick={onCancel}>
@@ -142,7 +142,7 @@ export default function UsersPage() {
     <>
       <PageTitle eyebrow="Administration" title="Utilisateurs">
         {can('users.create') && can('roles.read') && (
-          <button className="btn btn-success" onClick={() => setEditing(null)}>
+          <button className="btn btn-outline-success" onClick={() => setEditing(null)}>
             + Créer un utilisateur
           </button>
         )}

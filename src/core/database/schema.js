@@ -47,6 +47,7 @@ export const definitions = {
     email: { type: D.STRING(254), allowNull: false, defaultValue: '' },
     timezone: { type: D.STRING(50), allowNull: false, defaultValue: 'Europe/Paris' },
     paymentMethods: { type: D.JSON, allowNull: true },
+    defaultCalendarView: { type: D.STRING(8), allowNull: false, defaultValue: 'month' },
   },
   AuditLogs: auditAttributes,
   IdempotencyKeys: {

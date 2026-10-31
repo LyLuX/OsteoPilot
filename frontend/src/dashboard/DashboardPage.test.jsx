@@ -16,12 +16,15 @@ vi.mock('../api/client.js', async (original) => ({
 }));
 let records;
 let acceptedMethods;
+let defaultView;
 beforeEach(() => {
   vi.clearAllMocks();
   records = [];
+  defaultView = 'month';
   acceptedMethods = ['cash', 'card'];
   mocks.can.mockReturnValue(true);
   mocks.get.mockImplementation(async (path, query) => {
+    if (path === '/settings/calendar') return { defaultCalendarView: defaultView };
     if (path === '/payments/summary') {
       const days = new Map();
       for (const record of records) {
@@ -67,14 +70,16 @@ beforeEach(() => {
     return payment;
   });
 });
-function show() {
-  return render(
+async function show() {
+  const view = render(
     <NotificationProvider>
       <MemoryRouter>
         <DashboardPage now={new Date('2026-10-29T12:00:00Z')} />
       </MemoryRouter>
     </NotificationProvider>,
   );
+  await screen.findByRole('group', { name: /^Calendrier / });
+  return view;
 }
 async function openPayment() {
   const button = await screen.findByRole('button', { name: 'Enregistrer un paiement' });
@@ -85,12 +90,8 @@ async function openPayment() {
 vi.mock('../auth/AuthContext.jsx', () => ({
   useAuth: () => ({ user: { firstName: 'Fictif' }, can: mocks.can }),
 }));
-test('jour courant, mois précédent/suivant, aujourd’hui et clavier', () => {
-  render(
-    <MemoryRouter>
-      <DashboardPage now={new Date('2026-10-29T12:00:00Z')} />
-    </MemoryRouter>,
-  );
+test('jour courant, mois précédent/suivant, aujourd’hui et clavier', async () => {
+  await show();
   const today = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
   expect(today).toHaveAttribute('aria-current', 'date');
   expect(today).toHaveAttribute('tabindex', '0');
@@ -112,7 +113,7 @@ test('jour courant, mois précédent/suivant, aujourd’hui et clavier', () => {
 });
 
 test('chaque jour vide affiche les moyens acceptés à zéro et le total, sélectionne la liste du jour', async () => {
-  show();
+  await show();
   const today = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
   await waitFor(() => expect(within(today).getAllByText(/^0\s*€$/)).toHaveLength(3));
   expect(screen.getByText('Aucun paiement enregistré pour ce jour.')).toBeInTheDocument();
@@ -134,7 +135,7 @@ test('chaque jour vide affiche les moyens acceptés à zéro et le total, sélec
 });
 
 test('modale : patient obligatoire, montant en centimes et actualisation calendrier/liste après création', async () => {
-  show();
+  await show();
   const dialog = await openPayment();
   await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
   expect(within(dialog).getByLabelText(/Date du paiement/)).toHaveValue('2026-10-29');
@@ -168,7 +169,7 @@ test('modale : patient obligatoire, montant en centimes et actualisation calendr
 });
 
 test('modale : validation Bootstrap et annulation sans création', async () => {
-  show();
+  await show();
   const dialog = await openPayment();
   await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
   await userEvent.type(within(dialog).getByLabelText(/Montant en euros/), '0');
@@ -184,7 +185,7 @@ test('paiement refusé : formulaire conservé, erreur de champ et reprise avec l
   mocks.post.mockRejectedValueOnce({
     response: { data: { error: { message: 'Enregistrement indisponible.' } } },
   });
-  show();
+  await show();
   const dialog = await openPayment();
   await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
   await userEvent.selectOptions(
@@ -199,20 +200,20 @@ test('paiement refusé : formulaire conservé, erreur de champ et reprise avec l
   expect(mocks.post.mock.calls[1][2]).toEqual(mocks.post.mock.calls[0][2]);
 });
 
-test('droits : ni requêtes ni montants ni bouton de création sans accès aux paiements', () => {
+test('droits : configuration minimale seule, sans requêtes de paiements ni montants ni création', async () => {
   mocks.can.mockImplementation((permission) => permission === 'dashboard.read');
-  show();
+  await show();
   expect(screen.queryByRole('button', { name: 'Enregistrer un paiement' })).not.toBeInTheDocument();
   expect(
     screen.getByText('Vous ne disposez pas du droit de consulter les paiements.'),
   ).toBeInTheDocument();
-  expect(mocks.get).not.toHaveBeenCalled();
+  expect(mocks.get.mock.calls).toEqual([['/settings/calendar', {}]]);
 });
 
 test('moyens désactivés absents des cases et de la légende, historique conservé', async () => {
   acceptedMethods = ['cash'];
   records = [{ id: 'old', date: '2026-10-29', method: 'card', amountCents: 1234 }];
-  show();
+  await show();
   const day = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
   await waitFor(() => expect(within(day).getByText('Autres')).toBeInTheDocument());
   expect(within(day).queryByTitle('Carte')).not.toBeInTheDocument();
@@ -228,7 +229,7 @@ test('vues semaine et année : périodes, cumuls mensuels et détails du panneau
     { id: 'b', date: '2026-10-30', method: 'card', amountCents: 202 },
     { id: 'c', date: '2026-11-01', method: 'cash', amountCents: 303 },
   ];
-  show();
+  await show();
   await userEvent.click(screen.getByRole('button', { name: 'Semaine', exact: true }));
   expect(
     screen.getByRole('group', { name: 'Calendrier hebdomadaire' }).querySelectorAll('button'),
@@ -291,7 +292,7 @@ test('changement de vue et de période : retour à la première page, navigation
     method: 'cash',
     amountCents: 100,
   }));
-  show();
+  await show();
   const next = await screen.findByRole('button', { name: 'Suivant', exact: true });
   await waitFor(() => expect(next).toBeEnabled());
   await userEvent.click(next);
@@ -327,7 +328,7 @@ test('changement de vue et de période : retour à la première page, navigation
 });
 test('aucun moyen accepté : seulement le total à zéro', async () => {
   acceptedMethods = [];
-  show();
+  await show();
   const day = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
   await waitFor(() => expect(within(day).getByText(/^0\s*€$/)).toBeInTheDocument());
   expect(day.querySelector('.payment-method')).toBeNull();
@@ -339,7 +340,7 @@ test('le panneau suit le mois sélectionné au changement de vue sans clic suppl
     { id: 'b', date: '2026-10-30', method: 'cash', amountCents: 500 },
     { id: 'c', date: '2026-11-01', method: 'cash', amountCents: 900 },
   ];
-  show();
+  await show();
   await screen.findByText(/Total : 2\s*€/);
   await userEvent.click(screen.getByRole('button', { name: 'Année', exact: true }));
   expect(await screen.findByText(/Total : 7\s*€/)).toBeInTheDocument();
@@ -366,7 +367,7 @@ test('chargement lent : aucun ancien total/liste, réponses dépassées ignorée
       });
     return normalGet(path, query);
   });
-  show();
+  await show();
   await screen.findByText(/Total : 7\s*€/);
   await userEvent.click(screen.getByRole('button', { name: 'Année', exact: true }));
   await screen.findByRole('list', { name: 'Paiements de la période' });
@@ -417,7 +418,7 @@ test('dépôt depuis le panneau : statut rafraîchi, montant et jour conservés'
       version: 1,
     },
   ];
-  show();
+  await show();
   const list = await screen.findByRole('list', { name: 'Paiements du jour' });
   expect(within(list).getByText('À déposer')).toBeInTheDocument();
   await userEvent.click(within(list).getByRole('button', { name: 'Déposer' }));
@@ -436,4 +437,52 @@ test('dépôt depuis le panneau : statut rafraîchi, montant et jour conservés'
     bankDeposited: false,
     version: 2,
   });
+});
+
+test.each([
+  ['week', 'Calendrier hebdomadaire', '2026-10-26', '2026-11-01'],
+  ['year', 'Calendrier annuel', '2026-01-01', '2026-12-31'],
+])('vue configurée %s appliquée avant toute requête de période', async (value, name, from, to) => {
+  defaultView = value;
+  await show();
+  expect(screen.getByRole('group', { name })).toBeInTheDocument();
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledWith('/payments/summary', { from, to }));
+  expect(
+    mocks.get.mock.calls.filter(([path]) => path === '/payments/summary').map(([, query]) => query),
+  ).toEqual([{ from, to }]);
+  expect(
+    screen.getByRole('button', { name: value === 'year' ? 'Année' : 'Semaine', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  if (value === 'year')
+    expect(mocks.get).toHaveBeenCalledWith('/payments', {
+      from: '2026-10-01',
+      to: '2026-10-31',
+      page: 1,
+      limit: 5,
+    });
+});
+test('configuration lente puis erreur : aucun calendrier provisoire, reprise possible', async () => {
+  const normalGet = mocks.get.getMockImplementation();
+  let reject;
+  mocks.get.mockImplementationOnce(
+    () =>
+      new Promise((_, failed) => {
+        reject = failed;
+      }),
+  );
+  render(
+    <MemoryRouter>
+      <DashboardPage now={new Date('2026-10-29T12:00:00Z')} />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('group', { name: /^Calendrier / })).not.toBeInTheDocument();
+  expect(mocks.get.mock.calls).toEqual([['/settings/calendar', {}]]);
+  await act(async () =>
+    reject({ response: { data: { error: { message: 'Configuration indisponible.' } } } }),
+  );
+  expect(screen.getByText('Le chargement a échoué.')).toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: /^Calendrier / })).not.toBeInTheDocument();
+  mocks.get.mockImplementation(normalGet);
+  await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  expect(await screen.findByRole('group', { name: 'Calendrier mensuel' })).toBeInTheDocument();
 });

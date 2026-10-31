@@ -60,7 +60,7 @@ test('connexion réussie : bouton et notification verts', async () => {
     </MemoryRouter>,
   );
   const button = screen.getByRole('button', { name: /Se connecter/ });
-  expect(button).toHaveClass('btn-success');
+  expect(button).toHaveClass('btn-outline-success');
   await userEvent.type(screen.getByLabelText(/Adresse email/), 'test@example.invalid');
   await userEvent.type(screen.getByLabelText(/Mot de passe/), 'test-password');
   await userEvent.click(button);

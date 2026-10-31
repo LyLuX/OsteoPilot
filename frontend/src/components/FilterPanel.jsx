@@ -43,7 +43,7 @@ export default function FilterPanel({
       {isMobile && (
         <button
           type="button"
-          className="filter-panel-toggle"
+          className="btn btn-outline-secondary filter-panel-toggle"
           aria-expanded={isExpanded}
           aria-controls={fieldsId}
           onClick={() => setExpanded((expanded) => !expanded)}

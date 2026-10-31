@@ -7,11 +7,15 @@ const attributes = [
   'email',
   'timezone',
   'paymentMethods',
+  'defaultCalendarView',
   'updatedAt',
 ];
 export class SettingsRepository {
   constructor(db) {
     this.model = db.models.Settings;
+  }
+  calendar() {
+    return this.model.findOne({ attributes: ['defaultCalendarView'] });
   }
   find(transaction) {
     return this.model.findOne({

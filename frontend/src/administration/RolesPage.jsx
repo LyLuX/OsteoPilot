@@ -24,7 +24,7 @@ export default function RolesPage() {
       <PageTitle eyebrow="Administration" title="Rôles">
         {can('roles.create') && (
           <button
-            className="btn btn-success"
+            className="btn btn-outline-success"
             onClick={() => {
               setName('');
               setEditing(null);
@@ -63,7 +63,7 @@ export default function RolesPage() {
               required
             />
             <div className="actions">
-              <button className="btn btn-success" disabled={task.busy}>
+              <button className="btn btn-outline-success" disabled={task.busy}>
                 Enregistrer
               </button>
               <button

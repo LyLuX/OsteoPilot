@@ -43,7 +43,7 @@ export default function PatientsPage() {
     <>
       <PageTitle eyebrow="Gestion patientèle" title="Patientèle">
         {can('patients.create') && (
-          <Link className="btn btn-success" to="/patients/new">
+          <Link className="btn btn-outline-success" to="/patients/new">
             + Créer un patient
           </Link>
         )}

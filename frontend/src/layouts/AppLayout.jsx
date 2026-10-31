@@ -61,7 +61,7 @@ export default function AppLayout({ now = new Date() }) {
         <div className="brand">
           <BrandIdentity />
           <button
-            className="btn btn-light"
+            className="btn btn-outline-light"
             onClick={() => setOpen(false)}
             aria-label="Fermer le menu"
           >

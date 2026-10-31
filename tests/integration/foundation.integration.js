@@ -75,6 +75,7 @@ test('migration des règlements depuis le schéma initial : informations du cabi
           '202610290002-settings-payment-methods.js',
           '202610290003-payments.js',
           '202610290004-payment-bank-deposits.js',
+          '202610310005-calendar-default-view.js',
         ],
       },
       { transaction },
@@ -1041,7 +1042,7 @@ test('migration du dépôt depuis des paiements existants : montants préservés
   await db.sequelize.transaction((transaction) =>
     qi.bulkDelete(
       'SequelizeMeta',
-      { name: '202610290004-payment-bank-deposits.js' },
+      { name: ['202610290004-payment-bank-deposits.js', '202610310005-calendar-default-view.js'] },
       { transaction },
     ),
   );
@@ -1067,4 +1068,147 @@ test('migration du dépôt depuis des paiements existants : montants préservés
   await row.reload();
   expect(row.bankDeposited).toBe(true);
   expect(row.version).toBe(2);
+});
+
+test('vue initiale : mise à jour indépendante, lecture minimale du dashboard et audit sans données', async () => {
+  const before = await administration.settings();
+  const cookie = 'osteopilot.access=' + session.token;
+  const save = (defaultCalendarView) =>
+    request(app)
+      .patch('/api/v1/settings/calendar')
+      .set('Cookie', cookie)
+      .set('Origin', config.publicUrl)
+      .set('X-CSRF-Token', session.csrfToken)
+      .send({ defaultCalendarView });
+  for (const value of ['week', 'year', 'month']) {
+    const response = await save(value);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ defaultCalendarView: value });
+    const after = await administration.settings();
+    expect({
+      ...after,
+      updatedAt: before.updatedAt,
+      defaultCalendarView: before.defaultCalendarView,
+    }).toEqual(before);
+  }
+  const audit = await db.models.AuditLogs.findAll({
+    where: { action: 'settings.calendar.update' },
+  });
+  expect(audit.length).toBeGreaterThanOrEqual(3);
+  expect(JSON.stringify(audit)).not.toMatch(
+    /defaultCalendarView|firstName|lastName|paymentMethods/,
+  );
+  const count = await db.models.AuditLogs.count();
+  await save('month');
+  expect(await db.models.AuditLogs.count()).toBe(count);
+  const dashboardUser = await restrictedUser(['dashboard.read']);
+  const read = await request(app)
+    .get('/api/v1/settings/calendar')
+    .set('Cookie', 'osteopilot.access=' + dashboardUser.session.token);
+  expect(read.status).toBe(200);
+  expect(read.body.data).toEqual({ defaultCalendarView: 'month' });
+  expect(
+    (
+      await request(app)
+        .get('/api/v1/settings')
+        .set('Cookie', 'osteopilot.access=' + dashboardUser.session.token)
+    ).status,
+  ).toBe(403);
+  await Promise.all([
+    administration.changeCalendarSettings(session.token, session.csrfToken, {
+      defaultCalendarView: 'year',
+    }),
+    administration.changePaymentMethod(session.token, session.csrfToken, {
+      method: 'cash',
+      accepted: true,
+    }),
+  ]);
+  const combined = await administration.settings();
+  expect(combined.defaultCalendarView).toBe('year');
+  expect(combined.paymentMethods).toContain('cash');
+  const general = Object.fromEntries(
+    ['name', 'address', 'phone', 'email', 'timezone'].map((key) => [key, combined[key]]),
+  );
+  await administration.saveSettings(session.token, session.csrfToken, general);
+  expect((await administration.settings()).defaultCalendarView).toBe('year');
+  await expect(
+    administration.saveSettings(session.token, session.csrfToken, {
+      ...general,
+      defaultCalendarView: 'month',
+    }),
+  ).rejects.toMatchObject({ status: 422 });
+});
+
+test('vue initiale : permissions, CSRF, validation et rollback de l’audit', async () => {
+  const reader = await restrictedUser(['dashboard.read', 'settings.read']);
+  const send = (body, token = session.token, csrf = session.csrfToken) =>
+    request(app)
+      .patch('/api/v1/settings/calendar')
+      .set('Cookie', 'osteopilot.access=' + token)
+      .set('Origin', config.publicUrl)
+      .set('X-CSRF-Token', csrf)
+      .send(body);
+  const before = await administration.settings();
+  expect(
+    (await send({ defaultCalendarView: 'week' }, reader.session.token, reader.session.csrfToken))
+      .status,
+  ).toBe(403);
+  await expect(
+    administration.changeCalendarSettings(reader.session.token, reader.session.csrfToken, {
+      defaultCalendarView: 'week',
+    }),
+  ).rejects.toMatchObject({ status: 403 });
+  expect((await send({ defaultCalendarView: 'week' }, session.token, 'invalid')).status).toBe(403);
+  const withoutDashboard = await restrictedUser(['settings.read']);
+  expect(
+    (
+      await request(app)
+        .get('/api/v1/settings/calendar')
+        .set('Cookie', 'osteopilot.access=' + withoutDashboard.session.token)
+    ).status,
+  ).toBe(403);
+  for (const body of [
+    { defaultCalendarView: 'day' },
+    { defaultCalendarView: 'week', name: 'interdit' },
+    { defaultCalendarView: null },
+    {},
+  ])
+    expect((await send(body)).status).toBe(422);
+  expect(await administration.settings()).toEqual(before);
+  const count = await db.models.AuditLogs.count();
+  jest
+    .spyOn(db.models.AuditLogs, 'create')
+    .mockRejectedValueOnce(new Error('Panne audit calendrier'));
+  await expect(
+    administration.changeCalendarSettings(session.token, session.csrfToken, {
+      defaultCalendarView: 'week',
+    }),
+  ).rejects.toThrow('Panne audit calendrier');
+  expect(await administration.settings()).toEqual(before);
+  expect(await db.models.AuditLogs.count()).toBe(count);
+});
+
+test('migration de la vue initiale : mois par défaut et préférences préservées au deuxième passage', async () => {
+  // DDL réservés à la base éphémère du runner, jamais à osteopilot.
+  const qi = db.sequelize.getQueryInterface();
+  const before = await administration.settings();
+  const paymentsBefore = await db.models.Payments.count();
+  await qi.removeColumn('Settings', 'defaultCalendarView');
+  await db.sequelize.transaction((transaction) =>
+    qi.bulkDelete(
+      'SequelizeMeta',
+      { name: '202610310005-calendar-default-view.js' },
+      { transaction },
+    ),
+  );
+  await expect(checkSchema(db)).rejects.toMatchObject({ status: 409 });
+  await migrate(db);
+  await checkSchema(db);
+  expect(await administration.settings()).toEqual({ ...before, defaultCalendarView: 'month' });
+  expect(await db.models.Payments.count()).toBe(paymentsBefore);
+  await administration.changeCalendarSettings(session.token, session.csrfToken, {
+    defaultCalendarView: 'week',
+  });
+  await migrate(db);
+  expect((await administration.settings()).defaultCalendarView).toBe('week');
 });

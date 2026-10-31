@@ -61,6 +61,9 @@ export function createControllers({ auth, patients, administration, payments }) 
     roleUpdate: (req) => administration.saveRole(token(req), csrf(req), id(req), req.body),
     permissionsUpdate: (req) =>
       administration.setPermissions(token(req), csrf(req), id(req), req.body),
+    calendarSettingsGet: () => administration.calendarSettings(),
+    calendarSettingsUpdate: (req) =>
+      administration.changeCalendarSettings(token(req), csrf(req), req.body),
     settingsGet: () => administration.settings(),
     settingsUpdate: (req) => administration.saveSettings(token(req), csrf(req), req.body),
     paymentMethodUpdate: (req) =>

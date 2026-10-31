@@ -129,7 +129,7 @@ export default function TransferPage() {
                 </ul>
                 <p className="muted">Aperçu limité aux 10 premières lignes.</p>
                 <button
-                  className="btn btn-success"
+                  className="btn btn-outline-success"
                   disabled={!preview.valid || task.busy}
                   onClick={() => setConfirm('import')}
                 >

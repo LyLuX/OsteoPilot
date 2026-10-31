@@ -78,6 +78,13 @@ notifications correspondant à l’action :
 - info (bleu) : consultation, recherche, filtre, export ;
 - secondary (neutre) : annuler, retour, pagination, contrôles de navigation.
 
+Tous les boutons d’action utilisent les variantes Bootstrap btn-outline-* :
+fond transparent et texte/contour de la couleur d’action, puis remplissage au
+survol ou à l’activation, comme le bouton Déconnexion. Le thème commun définit
+ces états via --action-color et les variables --bs-btn-*, y compris pour les
+anciennes variantes pleines. Conserver les contrôles spécialisés du calendrier,
+de pagination, de navigation et les icônes de fermeture dans leurs composants.
+
 Un enregistrement après modification reste vert. Une erreur prend toujours la
 priorité en rouge. Les confirmations reprennent la tonalité de leur action via
 ConfirmDialog tone. useTask.run(work, message, tone) utilise success par défaut.
@@ -143,3 +150,23 @@ La permission payments.deposit autorise le changement et son annulation,
 avec contrôle de version, verrou transactionnel et audit atomique minimal.
 Un état inchangé ne crée pas d’audit. En conflit (409), recharger la liste.
 Les rôles personnalisés nécessitent une attribution explicite de ce nouveau droit.
+
+## Vue initiale du calendrier
+
+Le paramètre partagé Settings.defaultCalendarView vaut week, month ou year ;
+month reste la valeur initiale des cabinets existants. Le panneau Calendrier
+l’enregistre immédiatement par PATCH /settings/calendar (settings.update),
+sans toucher aux informations générales ou aux moyens de paiement. La mutation
+et son audit settings.calendar.update sont dans la même transaction.
+GET /settings/calendar expose uniquement cette vue aux utilisateurs dashboard.read.
+Le dashboard attend ce réglage avant de charger ses périodes et conserve le choix
+ponctuel de l’utilisateur jusqu’à sa prochaine ouverture.
+
+## Lectures HTTP et StrictMode
+
+Conserver StrictMode en développement. Le client HTTP partage uniquement les GET
+identiques en cours (URL, paramètres et format de réponse) et supprime le partage
+dès leur succès ou leur échec. Il ne conserve aucun cache de données métier.
+Chaque écriture et changement de jeton CSRF invalide le partage avant les lectures
+suivantes ; la file HTTP maintient leur ordre. Les requêtes avec options spécifiques
+(headers, signal, etc.) ne sont pas partagées, et aucune écriture n’est dédupliquée.

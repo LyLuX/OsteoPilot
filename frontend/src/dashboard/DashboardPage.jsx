@@ -57,11 +57,24 @@ function PaymentTotals({ totals, methods, available, id }) {
     </span>
   );
 }
-export default function DashboardPage({ now }) {
+export default function DashboardPage(props) {
+  const settings = useResource('/settings/calendar');
+  if (settings.loading || settings.error || !settings.data)
+    return (
+      <>
+        <PageTitle eyebrow="Votre espace au quotidien" />
+        <ResourceState resource={settings} />
+      </>
+    );
+  return <DashboardCalendar {...props} defaultView={settings.data.defaultCalendarView} />;
+}
+function DashboardCalendar({ now, defaultView }) {
   const { can } = useAuth();
   const today = todayInParis(now);
-  const [selected, setSelected] = useState(today);
-  const [view, setView] = useState('month');
+  const [selected, setSelected] = useState(() =>
+    defaultView === 'year' ? new Date(today.getFullYear(), today.getMonth(), 1) : today,
+  );
+  const [view, setView] = useState(defaultView);
   const [detail, setDetail] = useState('cell');
   const grid = useRef(null);
   const period = calendarPeriod(view, selected);
@@ -215,7 +228,7 @@ export default function DashboardPage({ now }) {
             </div>
             <div className="calendar-controls">
               <button
-                className="btn btn-light"
+                className="btn btn-outline-light"
                 aria-label={viewNames[view] + (view === 'month' ? ' précédent' : ' précédente')}
                 onClick={() => changePeriod(-1)}
               >
@@ -232,7 +245,7 @@ export default function DashboardPage({ now }) {
                 Aujourd’hui
               </button>
               <button
-                className="btn btn-light"
+                className="btn btn-outline-light"
                 aria-label={viewNames[view] + (view === 'month' ? ' suivant' : ' suivante')}
                 onClick={() => changePeriod(1)}
               >
@@ -392,7 +405,7 @@ export default function DashboardPage({ now }) {
                 )}
                 {can('payments.create') && (
                   <button
-                    className="btn btn-success w-100 mt-3"
+                    className="btn btn-outline-success w-100 mt-3"
                     disabled={!summaryAvailable}
                     onClick={() => setPaymentModal(true)}
                   >
@@ -401,7 +414,7 @@ export default function DashboardPage({ now }) {
                 )}
                 {detail !== 'period' && (
                   <button
-                    className="btn btn-info payment-period-overview w-100"
+                    className="btn btn-outline-info w-100"
                     onClick={() => {
                       setDetail('period');
                       setPage(1);

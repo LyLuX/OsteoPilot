@@ -49,7 +49,7 @@ function PermissionEditor({ role, permissions, reload }) {
         <FormFeedback name="permissionIds" id="role-permissions-feedback" />
       </fieldset>
       {!protectedRole && (
-        <button className="btn btn-success" disabled={task.busy}>
+        <button className="btn btn-outline-success" disabled={task.busy}>
           Enregistrer les permissions
         </button>
       )}

@@ -2,6 +2,23 @@
 
 ## Non publié
 
+## 0.5.0 - 2026-10-31
+
+- [PATCH] Les lectures HTTP identiques déjà en cours partagent une seule requête,
+  notamment lors du double montage des effets React en développement. Aucun cache
+  de réponse n’est conservé ; les écritures et changements de session isolent
+  les nouvelles lectures pour préserver leur fraîcheur.
+
+- [MINOR] Le paramétrage propose une vue initiale du calendrier, semaine, mois
+  ou année, enregistrée automatiquement et indépendamment des autres réglages.
+  Le panneau Calendrier se place sous les moyens de paiement sur mobile et à côté
+  sur ordinateur. Le dashboard charge ce réglage partagé avant son premier affichage.
+
+- [PATCH] Tous les boutons d’action reprennent le style à contour de « Déconnexion » :
+  connexion, formulaires, listes, confirmations, modales et dashboard utilisent
+  un fond transparent et un remplissage au survol, avec leurs couleurs d’action.
+  Le thème commun applique également ce style aux futurs boutons.
+
 ## 0.4.1 - 2026-10-31
 
 - [PATCH] Le bouton de consultation de toute la semaine, du mois ou de l’année

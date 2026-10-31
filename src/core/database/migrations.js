@@ -16,11 +16,16 @@ import {
   migrationName as depositsName,
   up as depositsUp,
 } from '../../../migrations/202610290004-payment-bank-deposits.js';
+import {
+  migrationName as calendarName,
+  up as calendarUp,
+} from '../../../migrations/202610310005-calendar-default-view.js';
 const migrations = [
   { name: initialName, up: initialUp },
   { name: paymentsName, up: paymentsUp },
   { name: ledgerName, up: ledgerUp },
   { name: depositsName, up: depositsUp },
+  { name: calendarName, up: calendarUp },
 ];
 const knownHistory = (history) =>
   history.length <= migrations.length &&

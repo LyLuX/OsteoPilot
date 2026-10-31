@@ -196,7 +196,7 @@ export function ConfirmDialog({ title, children, onConfirm, onCancel, busy, tone
         <button className="btn btn-outline-secondary" onClick={onCancel} disabled={busy}>
           Annuler
         </button>
-        <button className={'btn btn-' + tone} onClick={onConfirm} disabled={busy}>
+        <button className={'btn btn-outline-' + tone} onClick={onConfirm} disabled={busy}>
           Confirmer
         </button>
       </div>

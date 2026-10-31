@@ -48,7 +48,9 @@ test('désactiver puis activer : confirmation, couleur, version et actualisation
   expect(screen.getByRole('combobox', { name: 'Statut' })).toHaveValue('all');
   await user.click(disable);
   let dialog = screen.getByRole('dialog');
-  expect(within(dialog).getByRole('button', { name: 'Confirmer' })).toHaveClass('btn-danger');
+  expect(within(dialog).getByRole('button', { name: 'Confirmer' })).toHaveClass(
+    'btn-outline-danger',
+  );
   await user.click(within(dialog).getByRole('button', { name: 'Confirmer' }));
   expect(mocks.patch).toHaveBeenCalledWith('/patients/patient-fictif/status', {
     active: false,
@@ -60,7 +62,9 @@ test('désactiver puis activer : confirmation, couleur, version et actualisation
   expect(screen.getByText('Patient désactivé.').closest('.toast')).toHaveClass('bg-danger-subtle');
   await user.click(enable);
   dialog = screen.getByRole('dialog');
-  expect(within(dialog).getByRole('button', { name: 'Confirmer' })).toHaveClass('btn-success');
+  expect(within(dialog).getByRole('button', { name: 'Confirmer' })).toHaveClass(
+    'btn-outline-success',
+  );
   await user.click(within(dialog).getByRole('button', { name: 'Confirmer' }));
   expect(mocks.patch).toHaveBeenLastCalledWith('/patients/patient-fictif/status', {
     active: true,

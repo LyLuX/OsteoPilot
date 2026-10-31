@@ -194,7 +194,7 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
           <div className="actions">
             <button
               type="submit"
-              className="btn btn-success"
+              className="btn btn-outline-success"
               disabled={patients.loading || Boolean(patients.error) || acceptedMethods.length === 0}
             >
               Enregistrer le paiement

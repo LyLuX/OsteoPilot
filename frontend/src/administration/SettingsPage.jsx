@@ -71,7 +71,7 @@ function SettingsForm({ settings }) {
         <p className="muted">
           Fuseau du cabinet : Europe/Paris. Les horodatages sont conservés en UTC.
         </p>
-        {can('settings.update') && <button className="btn btn-success">Enregistrer</button>}
+        {can('settings.update') && <button className="btn btn-outline-success">Enregistrer</button>}
       </fieldset>
     </BootstrapForm>
   );
@@ -131,6 +131,52 @@ function PaymentMethodsForm({ settings }) {
     </fieldset>
   );
 }
+function CalendarSettingsForm({ settings }) {
+  const id = useId();
+  const { can } = useAuth();
+  const task = useTask();
+  const pending = useRef(false);
+  const [selected, setSelected] = useState(settings.defaultCalendarView ?? 'month');
+  const change = async (defaultCalendarView) => {
+    if (pending.current || !can('settings.update') || defaultCalendarView === selected) return;
+    pending.current = true;
+    const previous = selected;
+    setSelected(defaultCalendarView);
+    try {
+      const result = await task.run(
+        () => api.patch('/settings/calendar', { defaultCalendarView }),
+        'Vue par défaut du calendrier mise à jour.',
+        'warning',
+      );
+      setSelected(result?.defaultCalendarView ?? previous);
+    } finally {
+      pending.current = false;
+    }
+  };
+  return (
+    <fieldset disabled={!can('settings.update') || task.busy} aria-busy={task.busy}>
+      <legend className="visually-hidden">Affichage du calendrier</legend>
+      <label className="form-label" htmlFor={id}>
+        Vue par défaut
+      </label>
+      <FormControl
+        as="select"
+        name="defaultCalendarView"
+        id={id}
+        value={selected}
+        error={task.fieldErrors.defaultCalendarView}
+        onChange={(event) => change(event.target.value)}
+      >
+        <option value="week">Semaine</option>
+        <option value="month">Mois</option>
+        <option value="year">Année</option>
+      </FormControl>
+      <p className="muted mt-2 mb-0">
+        Enregistrement automatique. Cette vue sera utilisée à l’ouverture du dashboard.
+      </p>
+    </fieldset>
+  );
+}
 export default function SettingsPage() {
   const resource = useResource('/settings');
   return (
@@ -142,10 +188,16 @@ export default function SettingsPage() {
         {resource.data && <SettingsForm settings={resource.data} />}
       </Panel>
       {resource.data && (
-        <Panel>
-          <h2>Moyens de paiement</h2>
-          <PaymentMethodsForm settings={resource.data} />
-        </Panel>
+        <div className="settings-options-grid">
+          <Panel>
+            <h2>Moyens de paiement</h2>
+            <PaymentMethodsForm settings={resource.data} />
+          </Panel>
+          <Panel>
+            <h2>Calendrier</h2>
+            <CalendarSettingsForm settings={resource.data} />
+          </Panel>
+        </div>
       )}
     </>
   );

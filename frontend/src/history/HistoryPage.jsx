@@ -85,7 +85,7 @@ export default function HistoryPage() {
             ]}
           />
           <div className="actions mb-3">
-            <button className="btn btn-info">Filtrer</button>
+            <button className="btn btn-outline-info">Filtrer</button>
             <button
               className="btn btn-outline-secondary"
               type="reset"

@@ -2,10 +2,38 @@ import axios from 'axios';
 const client = axios.create({ baseURL: '/api/v1', withCredentials: true, timeout: 30000 });
 let csrfToken = '';
 let queue = Promise.resolve();
+const pendingReads = new Map();
+let readRevision = 0;
+const invalidateReads = () => {
+  readRevision += 1;
+  pendingReads.clear();
+};
+function readKey(method, url, data, options) {
+  if (
+    method !== 'get' ||
+    data !== undefined ||
+    Object.keys(options).some((key) => !['params', 'responseType'].includes(key))
+  )
+    return null;
+  if (options.params != null && Object.getPrototypeOf(options.params) !== Object.prototype)
+    return null;
+  return JSON.stringify(
+    [url, options.params ?? {}, options.responseType ?? 'json', readRevision],
+    (_, value) =>
+      value && Object.getPrototypeOf(value) === Object.prototype
+        ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+        : value,
+  );
+}
 export const setCsrfToken = (value) => {
-  csrfToken = value || '';
+  const next = value || '';
+  if (next !== csrfToken) invalidateReads();
+  csrfToken = next;
 };
 export function request(method, url, data, options = {}) {
+  if (!['get', 'head', 'options'].includes(method)) invalidateReads();
+  const key = readKey(method, url, data, options);
+  if (key && pendingReads.has(key)) return pendingReads.get(key);
   // Ordre conservé, notamment entre rotation de session et écriture métier.
   const run = () =>
     client
@@ -24,7 +52,12 @@ export function request(method, url, data, options = {}) {
       });
   const pending = queue.then(run, run);
   queue = pending.catch(() => {});
-  return pending;
+  if (!key) return pending;
+  const shared = pending.finally(() => {
+    if (pendingReads.get(key) === shared) pendingReads.delete(key);
+  });
+  pendingReads.set(key, shared);
+  return shared;
 }
 export const api = {
   get: (url, params) => request('get', url, undefined, { params }),

@@ -86,35 +86,50 @@ a {
   text-underline-offset: 3px;
 }
 .btn {
+  --action-color: var(--muted);
+  --bs-btn-color: var(--action-color);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: var(--action-color);
+  --bs-btn-hover-color: var(--surface);
+  --bs-btn-hover-bg: var(--action-color);
+  --bs-btn-hover-border-color: var(--action-color);
+  --bs-btn-active-color: var(--surface);
+  --bs-btn-active-bg: var(--action-color);
+  --bs-btn-active-border-color: var(--action-color);
+  --bs-btn-disabled-color: var(--action-color);
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--action-color);
   border-radius: 0.6rem;
   padding: 0.65rem 1rem;
   font-weight: 600;
 }
 .btn-primary,
-.btn-success {
-  --bs-btn-color: var(--surface);
-  --bs-btn-bg: var(--brand-forest);
-  --bs-btn-border-color: var(--brand-forest);
-  --bs-btn-hover-bg: var(--brand-forest-dark);
-  --bs-btn-hover-border-color: var(--brand-forest-dark);
-  --bs-btn-active-bg: var(--brand-forest-dark);
-  --bs-btn-active-border-color: var(--brand-forest-dark);
-  --bs-btn-hover-color: var(--surface);
-  --bs-btn-active-color: var(--surface);
-  --bs-btn-disabled-color: var(--surface);
-  --bs-btn-disabled-bg: var(--brand-forest);
-  --bs-btn-disabled-border-color: var(--brand-forest);
+.btn-outline-primary,
+.btn-success,
+.btn-outline-success {
+  --action-color: var(--brand-forest);
 }
-.btn-outline-secondary {
-  --bs-btn-color: var(--ink);
-  --bs-btn-border-color: var(--border);
-  --bs-btn-hover-bg: var(--surface-subtle);
-  --bs-btn-hover-color: var(--ink);
-  --bs-btn-hover-border-color: var(--muted);
+.btn-danger,
+.btn-outline-danger {
+  --action-color: var(--danger);
 }
-.btn-danger {
-  --bs-btn-bg: var(--danger);
-  --bs-btn-border-color: var(--danger);
+.btn-warning,
+.btn-outline-warning {
+  --action-color: var(--accent-amber);
+}
+.btn-info,
+.btn-outline-info {
+  --action-color: var(--accent-blue);
+}
+.btn-secondary,
+.btn-outline-secondary,
+.btn-light,
+.btn-outline-light {
+  --action-color: var(--muted);
+}
+.btn-dark,
+.btn-outline-dark {
+  --action-color: var(--ink);
 }
 .muted {
   color: var(--muted);
@@ -860,10 +875,7 @@ dialog::backdrop {
   gap: 1rem;
   width: 100%;
   min-height: 44px;
-  padding: 0.25rem 0;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
+  padding: 0.5rem 0.75rem;
   text-align: left;
   font-size: 0.85rem;
   font-weight: 600;
@@ -1182,18 +1194,7 @@ dialog::backdrop {
   --deposit-status-color: var(--brand-forest-dark);
 }
 .payment-deposit-button {
-  --bs-btn-color: var(--deposit-status-color);
-  --bs-btn-bg: var(--deposit-status-background);
-  --bs-btn-border-color: var(--deposit-status-background);
-  --bs-btn-hover-color: var(--deposit-status-color);
-  --bs-btn-hover-bg: color-mix(in srgb, var(--deposit-status-color) 20%, var(--surface));
-  --bs-btn-hover-border-color: var(--deposit-status-color);
-  --bs-btn-active-color: var(--deposit-status-color);
-  --bs-btn-active-bg: var(--bs-btn-hover-bg);
-  --bs-btn-active-border-color: var(--deposit-status-color);
-  --bs-btn-disabled-color: var(--deposit-status-color);
-  --bs-btn-disabled-bg: var(--deposit-status-background);
-  --bs-btn-disabled-border-color: var(--deposit-status-background);
+  --action-color: var(--deposit-status-color);
 }
 .payment-list .payment-deposit-control {
   display: flex;
@@ -1228,14 +1229,17 @@ dialog::backdrop {
   }
 }
 
-.payment-period-overview {
-  --bs-btn-color: var(--surface);
-  --bs-btn-bg: var(--accent-blue);
-  --bs-btn-border-color: var(--accent-blue);
-  --bs-btn-hover-color: var(--surface);
-  --bs-btn-hover-bg: color-mix(in srgb, var(--accent-blue) 85%, var(--ink));
-  --bs-btn-hover-border-color: var(--bs-btn-hover-bg);
-  --bs-btn-active-color: var(--surface);
-  --bs-btn-active-bg: var(--bs-btn-hover-bg);
-  --bs-btn-active-border-color: var(--bs-btn-hover-bg);
+.settings-options-grid {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.settings-options-grid > .panel {
+  margin-bottom: 0;
+}
+@media (min-width: 992px) {
+  .settings-options-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
 }

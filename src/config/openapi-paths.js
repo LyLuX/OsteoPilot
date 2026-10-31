@@ -47,6 +47,8 @@ const preview = {
   },
 };
 export function responseSchema(action) {
+  if (['calendarSettingsGet', 'calendarSettingsUpdate'].includes(action))
+    return ref('CalendarSettings');
   if (action === 'paymentsSummary') return ref('PaymentSummary');
   if (action === 'paymentsList') return paginated('Payment');
   if (action === 'paymentPatients') return paginated('PaymentPatient');
@@ -194,7 +196,7 @@ for (const route of routes) {
             ...(route.action === 'settingsUpdate'
               ? {
                   description:
-                    'Modifie uniquement les informations générales du cabinet. Les moyens de paiement se modifient séparément via PATCH /settings/payment-methods.',
+                    'Modifie uniquement les informations générales du cabinet. Les moyens de paiement se modifient séparément via PATCH /settings/payment-methods et la vue initiale du calendrier via PATCH /settings/calendar.',
                 }
               : {}),
             required: true,
