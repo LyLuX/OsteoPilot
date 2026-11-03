@@ -9,10 +9,16 @@ const patient = {
   lastName: 'Exemple',
   firstName: 'Fictif',
 };
-const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), can: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  patch: vi.fn(),
+  remove: vi.fn(),
+  can: vi.fn(),
+}));
 vi.mock('../api/client.js', async (original) => ({
   ...(await original()),
-  api: { get: mocks.get, post: mocks.post, patch: mocks.patch },
+  api: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.remove },
 }));
 let records;
 let acceptedMethods;
@@ -485,4 +491,75 @@ test('configuration lente puis erreur : aucun calendrier provisoire, reprise pos
   mocks.get.mockImplementation(normalGet);
   await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
   expect(await screen.findByRole('group', { name: 'Calendrier mensuel' })).toBeInTheDocument();
+});
+
+test('suppression depuis le dashboard : confirmation, liste et totaux du calendrier actualisés', async () => {
+  records = [
+    { id: 'payment-delete', date: '2026-10-29', method: 'card', amountCents: 7500, version: 1 },
+  ];
+  mocks.remove.mockImplementation(async () => {
+    records = [];
+    return { id: 'payment-delete' };
+  });
+  await show();
+  const day = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
+  await waitFor(() => expect(day).toHaveTextContent('75'));
+  fireEvent.click(await screen.findByRole('button', { name: /Supprimer le paiement/ }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('Exemple Fictif');
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  await screen.findByText('Aucun paiement enregistré pour ce jour.');
+  expect(mocks.remove).toHaveBeenCalledWith('/payments/payment-delete', {
+    version: 1,
+    confirmed: true,
+  });
+  await waitFor(() => expect(within(day).getAllByText(/^0\s*€$/)).toHaveLength(3));
+  expect(document.querySelector('.quiet-panel')).toHaveTextContent('Total : 0');
+});
+
+test('dashboard sans permission de suppression : aucune commande rouge de paiement', async () => {
+  records = [
+    { id: 'payment-read', date: '2026-10-29', method: 'card', amountCents: 7500, version: 1 },
+  ];
+  mocks.can.mockImplementation((permission) => permission !== 'payments.delete');
+  await show();
+  await screen.findByText('Exemple Fictif');
+  expect(screen.queryByRole('button', { name: /Supprimer le paiement/ })).not.toBeInTheDocument();
+});
+
+test('date future : bouton du dashboard inactif, retour au jour courant autorisé', async () => {
+  await show();
+  const create = await screen.findByRole('button', { name: 'Enregistrer un paiement' });
+  await waitFor(() => expect(create).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'vendredi 30 octobre 2026' }));
+  expect(create).toBeDisabled();
+  fireEvent.click(create);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Aujourd’hui' }));
+  await waitFor(() => expect(create).toBeEnabled());
+});
+
+test('modale : date limitée à aujourd’hui, validation Bootstrap et enregistrement désactivé dans le futur', async () => {
+  await show();
+  const dialog = await openPayment();
+  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
+  const date = within(dialog).getByLabelText(/Date du paiement/);
+  const save = within(dialog).getByRole('button', { name: 'Enregistrer le paiement' });
+  expect(date).toHaveAttribute('max', '2026-10-29');
+  fireEvent.change(within(dialog).getByRole('combobox', { name: 'Patient *' }), {
+    target: { value: patient.id },
+  });
+  fireEvent.change(within(dialog).getByLabelText(/Montant en euros/), { target: { value: '50' } });
+  fireEvent.change(date, { target: { value: '2026-10-30' } });
+  expect(save).toBeDisabled();
+  expect(date).toHaveClass('is-invalid');
+  expect(date).toHaveAttribute('aria-invalid', 'true');
+  expect(
+    within(dialog).getByText('La date du paiement ne peut pas être postérieure à aujourd’hui.'),
+  ).toBeInTheDocument();
+  fireEvent.submit(dialog.querySelector('form'));
+  expect(mocks.post).not.toHaveBeenCalled();
+  fireEvent.change(date, { target: { value: '2026-10-29' } });
+  expect(save).toBeEnabled();
+  fireEvent.change(date, { target: { value: '2026-10-28' } });
+  expect(save).toBeEnabled();
 });

@@ -11,7 +11,14 @@ import {
 import { api } from '../api/client.js';
 import { createRequestId } from '../api/request-id.js';
 import { paymentMethods, parseMoney } from './money.js';
-export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved }) {
+import { dateKey, todayInParis } from '../dashboard/calendar.js';
+export default function PaymentModal({
+  date,
+  acceptedMethods,
+  onCancel,
+  onSaved,
+  today = dateKey(todayInParis()),
+}) {
   const titleId = useId();
   const dialog = useRef(null);
   const key = useRef(null);
@@ -24,6 +31,8 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
     method: acceptedMethods[0] || '',
     amountCents: '',
   });
+  const futureDate = values.date > today;
+  const dateError = 'La date du paiement ne peut pas être postérieure à aujourd’hui.';
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const { page, setPage, limit, setLimit } = usePagination(25);
@@ -77,7 +86,7 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
             : {}
         }
         onSubmit={async () => {
-          if (pending.current) return;
+          if (pending.current || futureDate) return;
           pending.current = true;
           try {
             const result = await task.run(
@@ -150,7 +159,8 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
             name="date"
             type="date"
             min="1000-01-01"
-            max="9999-12-31"
+            max={today}
+            error={futureDate ? dateError : undefined}
             required
             value={values.date}
             onChange={change}
@@ -195,7 +205,12 @@ export default function PaymentModal({ date, acceptedMethods, onCancel, onSaved 
             <button
               type="submit"
               className="btn btn-outline-success"
-              disabled={patients.loading || Boolean(patients.error) || acceptedMethods.length === 0}
+              disabled={
+                patients.loading ||
+                Boolean(patients.error) ||
+                acceptedMethods.length === 0 ||
+                futureDate
+              }
             >
               Enregistrer le paiement
             </button>

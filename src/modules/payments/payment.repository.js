@@ -26,6 +26,36 @@ export class PaymentRepository {
       lock: transaction.LOCK.UPDATE,
     });
   }
+  remove(row, transaction) {
+    requireTransaction(transaction);
+    return row.destroy({ transaction });
+  }
+  patientExists(id, transaction) {
+    return this.models.Patients.findByPk(id, { attributes: ['id'], transaction });
+  }
+  patientPayments(id, query, transaction) {
+    return this.models.Payments.findAndCountAll({
+      attributes,
+      where: { patientId: id },
+      transaction,
+      order: [
+        ['date', 'DESC'],
+        ['createdAt', 'DESC'],
+        ['id', 'ASC'],
+      ],
+      limit: query.limit,
+      offset: (query.page - 1) * query.limit,
+    });
+  }
+  patientTotals(id, transaction) {
+    return this.models.Payments.findAll({
+      attributes: ['method', [fn('SUM', col('amountCents')), 'amountCents']],
+      where: { patientId: id },
+      group: ['method'],
+      raw: true,
+      transaction,
+    });
+  }
   updateDeposit(row, values, transaction) {
     requireTransaction(transaction);
     return row.update(values, { transaction });

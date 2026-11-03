@@ -9,6 +9,7 @@ import {
   useResource,
 } from '../components/shared.jsx';
 import PaymentModal from '../payments/PaymentModal.jsx';
+import PaymentDeleteControl from '../payments/PaymentDeleteControl.jsx';
 import PaymentDepositControl from '../payments/PaymentDepositControl.jsx';
 import PaymentMethodIcon from '../payments/PaymentMethodIcon.jsx';
 import { paymentMethods, formatMoney } from '../payments/money.js';
@@ -369,19 +370,33 @@ function DashboardCalendar({ now, defaultView }) {
                       >
                         {payments.data.items.map((payment) => (
                           <li key={payment.id}>
-                            <div>
-                              <strong>
-                                {payment.patient?.lastName} {payment.patient?.firstName}
-                              </strong>
-                              <span className="muted d-block">
-                                {
-                                  paymentMethods.find((method) => method.code === payment.method)
-                                    ?.label
-                                }
-                                {!singleDay && ' · ' + payment.date.split('-').reverse().join('/')}
-                              </span>
+                            <div className="payment-row-heading">
+                              <div>
+                                <strong>
+                                  {payment.patient?.lastName} {payment.patient?.firstName}
+                                </strong>
+                                <span className="muted d-block">
+                                  {
+                                    paymentMethods.find((method) => method.code === payment.method)
+                                      ?.label
+                                  }
+                                  {!singleDay &&
+                                    ' · ' + payment.date.split('-').reverse().join('/')}
+                                </span>
+                              </div>
+                              <div className="payment-row-actions">
+                                <strong>{formatMoney(payment.amountCents)}</strong>
+                                <PaymentDeleteControl
+                                  payment={payment}
+                                  canDelete={can('payments.delete')}
+                                  onDeleted={() => {
+                                    setPage(1);
+                                    payments.reload();
+                                    summary.reload();
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <strong>{formatMoney(payment.amountCents)}</strong>
                             <PaymentDepositControl
                               payment={payment}
                               canUpdate={can('payments.deposit')}
@@ -406,7 +421,12 @@ function DashboardCalendar({ now, defaultView }) {
                 {can('payments.create') && (
                   <button
                     className="btn btn-outline-success w-100 mt-3"
-                    disabled={!summaryAvailable}
+                    disabled={!summaryAvailable || dateKey(selected) > dateKey(today)}
+                    title={
+                      dateKey(selected) > dateKey(today)
+                        ? 'Un paiement ne peut pas être enregistré à une date future.'
+                        : undefined
+                    }
                     onClick={() => setPaymentModal(true)}
                   >
                     Enregistrer un paiement
@@ -433,6 +453,7 @@ function DashboardCalendar({ now, defaultView }) {
       {paymentModal && (
         <PaymentModal
           date={dateKey(selected)}
+          today={dateKey(today)}
           acceptedMethods={summary.data?.acceptedMethods ?? []}
           onCancel={() => setPaymentModal(false)}
           onSaved={(payment) => {

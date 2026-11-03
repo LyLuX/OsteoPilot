@@ -1,5 +1,7 @@
 import {
   paymentInput,
+  paymentDeleteInput,
+  patientPaymentsQuery,
   paymentDepositInput,
   paymentQuery,
   paymentSummaryQuery,
@@ -25,6 +27,24 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'delete',
+    path: '/payments/:id',
+    permission: 'payments.delete',
+    body: paymentDeleteInput,
+    action: 'paymentDelete',
+    summary:
+      'Supprimer définitivement un paiement erroné avec confirmation, version et audit atomique',
+  },
+  {
+    method: 'get',
+    path: '/patients/:id/payments',
+    permission: 'patients.read',
+    query: patientPaymentsQuery,
+    action: 'patientPayments',
+    summary:
+      'Récapitulatif paginé des paiements du patient, tous moyens et toutes dates ; droits patients.read et payments.read requis',
+  },
   {
     method: 'get',
     path: '/settings/calendar',
@@ -80,7 +100,8 @@ export const routes = [
     idempotent: true,
     status: 201,
     action: 'paymentsCreate',
-    summary: 'Enregistrer un paiement et son audit, sans doublon au rejeu',
+    summary:
+      'Enregistrer un paiement au plus tard aujourd’hui (Europe/Paris) et son audit, sans doublon au rejeu',
   },
   {
     method: 'post',

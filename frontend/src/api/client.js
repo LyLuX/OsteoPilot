@@ -62,6 +62,7 @@ export function request(method, url, data, options = {}) {
 export const api = {
   get: (url, params) => request('get', url, undefined, { params }),
   post: (url, data = {}, options) => request('post', url, data, options),
+  delete: (url, data) => request('delete', url, data),
   patch: (url, data) => request('patch', url, data),
   put: (url, data) => request('put', url, data),
 };

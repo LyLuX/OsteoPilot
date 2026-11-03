@@ -1,6 +1,8 @@
 import { parse } from '../src/core/validation.js';
 import {
   paymentInput,
+  paymentDeleteInput,
+  patientPaymentsQuery,
   paymentSummaryQuery,
   paymentQuery,
   paymentDepositInput,
@@ -82,4 +84,22 @@ test('dépôt : booléen et version stricts, projection explicite des seuls moye
     });
   expect(publicPayment(input)).not.toHaveProperty('createdBy');
   expect(() => parse(paymentInput, { ...input, bankDeposited: true })).toThrow();
+});
+
+test('suppression : confirmation explicite et version entière, historique patient strictement paginé', () => {
+  expect(parse(paymentDeleteInput, { version: 1, confirmed: true })).toEqual({
+    version: 1,
+    confirmed: true,
+  });
+  for (const input of [
+    { version: 1 },
+    { version: 1, confirmed: false },
+    { version: '1', confirmed: true },
+    { version: 1.5, confirmed: true },
+    { version: 1, confirmed: true, force: true },
+  ])
+    expect(() => parse(paymentDeleteInput, input)).toThrow();
+  expect(parse(patientPaymentsQuery, { page: '2', limit: '5' })).toEqual({ page: 2, limit: 5 });
+  for (const query of [{ page: 0 }, { limit: 101 }, { patientId: input.patientId }])
+    expect(() => parse(patientPaymentsQuery, query)).toThrow();
 });

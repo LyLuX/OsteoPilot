@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.6.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.7.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -139,11 +139,11 @@ npm run dev:lan
 ```
 
 Depuis le dossier frontend, la même commande fonctionne directement.
-Ouvrir ensuite http://ADRESSE-IP-DU-PC:5174 depuis un appareil du même réseau.
+Ouvrir ensuite <http://ADRESSE-IP-DU-PC:5174> depuis un appareil du même réseau.
 Vite écoute sur toutes les interfaces, toujours sur le port 5174 strict ;
 l’API reste sur 127.0.0.1:3008 et les appels passent par le proxy Vite.
 L’origine réseau exacte doit être autorisée pour la connexion et les mutations.
-Pour http://osteopilot.org:5174, ajouter explicitement cette origine à CORS_ORIGINS
+Pour <http://osteopilot.org:5174>, ajouter explicitement cette origine à CORS_ORIGINS
 et utiliser cette URL comme APP_PUBLIC_URL. Ces variables désignent le frontend,
 pas l’API sur 3008. Redémarrer l’API après tout changement de configuration.
 Si Windows demande une autorisation réseau pour Node.js, choisir le réseau privé.
@@ -296,3 +296,11 @@ API : GET /api/v1/payments/summary (from/to, 62 jours maximum), GET
 et POST /api/v1/payments. Le POST exige Idempotency-Key, valide le moyen accepté
 et le patient dans la transaction, puis committe paiement, audit minimal et clé
 ensemble. Rejouer la même saisie avec la même clé ne crée aucun doublon.
+
+La fiche patient propose les onglets Informations et Paiements. Le récapitulatif
+requiert patients.read et payments.read et couvre toutes les dates, avec total,
+répartition par moyen et pagination. La suppression d’un paiement erroné est une
+action distincte payments.delete, confirmée et auditée avec contrôle de version ;
+elle est disponible sur le dashboard et la fiche patient selon les droits.
+La migration 202611030006-payment-delete-permission.js ajoute ce droit à ADMIN,
+sans l’attribuer aux autres rôles et sans modifier les paiements existants.

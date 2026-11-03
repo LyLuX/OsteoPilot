@@ -2,6 +2,31 @@
 
 ## Non publié
 
+## 0.7.0 - 2026-11-03
+
+- [PATCH] L’enregistrement d’un paiement à une date future est bloqué : bouton
+  du dashboard désactivé, date de saisie limitée à aujourd’hui et bouton de
+  validation inactif avec retour Bootstrap si la date est future. Le serveur
+  applique la même règle à chaque création selon le jour courant Europe/Paris,
+  sans paiement, clé d’idempotence ou audit créé en cas de refus.
+
+- [MINOR] La suppression définitive d’un paiement erroné dispose du droit dédié
+  payments.delete, d’une corbeille compacte à droite du montant, d’une confirmation
+  détaillée et d’un contrôle de version. La corbeille dispose d’un libellé accessible
+  et d’une cible tactile adaptée au mobile. Montant et corbeille sont groupés et
+  alignés sur la première ligne, au-dessus du moyen de règlement. La corbeille
+  neutralise la marge haute des boutons du dashboard pour conserver cet alignement.
+  La suppression et son audit sont atomiques, les totaux sont actualisés et
+  le rejeu d’une ancienne création ne peut pas rétablir un paiement supprimé.
+  La migration 006 attribue ce droit au rôle ADMIN uniquement par défaut et
+  propose un retour arrière de développement.
+
+- [MINOR] La fiche patient propose les onglets Informations et Paiements,
+  inspirés de GreenDesk et accessibles au clavier. Le récapitulatif affiche
+  les paiements paginés, leur total et la répartition par moyen de règlement,
+  y compris pour les patients et moyens désactivés, sous contrôle des droits
+  patients.read et payments.read. Dépôt et suppression restent soumis à leurs droits propres.
+
 ## 0.6.0 - 2026-10-31
 
 - [PATCH] Le libellé de page et la date dans la barre supérieure gagnent en

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api } from '../api/client.js';
@@ -10,13 +10,18 @@ import {
   ResourceState,
   useTask,
 } from '../components/shared.jsx';
+import DetailTabs from '../components/DetailTabs.jsx';
+import PatientPayments from './PatientPayments.jsx';
 export default function PatientDetailPage() {
   const { id } = useParams();
+  const tabId = useId();
+  const [tab, setTab] = useState('information');
   const { can } = useAuth();
   const resource = useResource('/patients/' + id);
   const [confirm, setConfirm] = useState(false);
   const task = useTask();
-  const p = resource.data;
+  const p = resource.current && !resource.loading && !resource.error ? resource.data : null;
+  const activeTab = tab === 'payments' && can('payments.read') ? 'payments' : 'information';
   return (
     <>
       <PageTitle eyebrow="Gestion patientèle" title="Fiche patient">
@@ -32,26 +37,54 @@ export default function PatientDetailPage() {
               {p.lastName} {p.firstName}
             </h2>
             <span className="status-badge">{p.archived ? 'Archivé' : 'Actif'}</span>
-            <dl className="patient-details">
-              <dt>Téléphone</dt>
-              <dd>{p.phone ? <a href={'tel:' + p.phone}>{p.phone}</a> : 'Non renseigné'}</dd>
-              <dt>Email</dt>
-              <dd>{p.email ? <a href={'mailto:' + p.email}>{p.email}</a> : 'Non renseigné'}</dd>
-              <dt>Adresse</dt>
-              <dd>{p.address || 'Non renseignée'}</dd>
-            </dl>
-            <div className="actions">
-              {can('patients.update') && (
-                <Link className="btn btn-outline-warning" to={'/patients/' + id + '/edit'}>
-                  Modifier
-                </Link>
-              )}
-              {can('patients.archive') && !p.archived && (
-                <button className="btn btn-outline-danger" onClick={() => setConfirm(true)}>
-                  Archiver
-                </button>
-              )}
+            <DetailTabs
+              id={tabId}
+              tabs={[
+                { id: 'information', label: 'Informations' },
+                ...(can('payments.read') ? [{ id: 'payments', label: 'Paiements' }] : []),
+              ]}
+              active={activeTab}
+              onChange={setTab}
+            />
+            <div
+              role="tabpanel"
+              id={tabId + '-panel-information'}
+              aria-labelledby={tabId + '-tab-information'}
+              hidden={activeTab !== 'information'}
+              tabIndex={0}
+            >
+              <dl className="patient-details">
+                <dt>Téléphone</dt>
+                <dd>{p.phone ? <a href={'tel:' + p.phone}>{p.phone}</a> : 'Non renseigné'}</dd>
+                <dt>Email</dt>
+                <dd>{p.email ? <a href={'mailto:' + p.email}>{p.email}</a> : 'Non renseigné'}</dd>
+                <dt>Adresse</dt>
+                <dd>{p.address || 'Non renseignée'}</dd>
+              </dl>
+              <div className="actions">
+                {can('patients.update') && (
+                  <Link className="btn btn-outline-warning" to={'/patients/' + id + '/edit'}>
+                    Modifier
+                  </Link>
+                )}
+                {can('patients.archive') && !p.archived && (
+                  <button className="btn btn-outline-danger" onClick={() => setConfirm(true)}>
+                    Archiver
+                  </button>
+                )}
+              </div>
             </div>
+            {can('payments.read') && (
+              <div
+                role="tabpanel"
+                id={tabId + '-panel-payments'}
+                aria-labelledby={tabId + '-tab-payments'}
+                hidden={activeTab !== 'payments'}
+                tabIndex={0}
+              >
+                {activeTab === 'payments' && <PatientPayments key={id} id={id} />}
+              </div>
+            )}
           </>
         )}
         {confirm && (

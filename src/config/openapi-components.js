@@ -18,6 +18,35 @@ export const components = {
         },
       },
     },
+    PaymentDeleted: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id'],
+      properties: { id: { type: 'string', format: 'uuid' } },
+    },
+    PatientPayments: {
+      ...paginated('Payment'),
+      description:
+        'Toutes les dates, y compris patients désactivés et moyens désactivés. Droits patients.read et payments.read requis. Le total porte sur tous les paiements du patient, indépendamment de la page.',
+      required: ['items', 'pagination', 'summary'],
+      properties: {
+        ...paginated('Payment').properties,
+        summary: {
+          type: 'object',
+          required: ['totalCents', 'methods'],
+          properties: {
+            totalCents: { type: 'integer', minimum: 0 },
+            methods: {
+              type: 'object',
+              required: paymentMethodCodes,
+              properties: Object.fromEntries(
+                paymentMethodCodes.map((code) => [code, { type: 'integer', minimum: 0 }]),
+              ),
+            },
+          },
+        },
+      },
+    },
     Patient: {
       type: 'object',
       additionalProperties: false,
@@ -125,7 +154,8 @@ export const components = {
         date: {
           type: 'string',
           format: 'date',
-          description: 'Jour civil du cabinet Europe/Paris, sans conversion UTC.',
+          description:
+            'Jour civil du cabinet Europe/Paris, sans conversion UTC. À la création, toute date postérieure au jour courant à Paris est refusée (422).',
         },
         method: { type: 'string', enum: paymentMethodCodes },
         amountCents: { type: 'integer', minimum: 1, maximum: 99999999 },
@@ -217,8 +247,12 @@ export const components = {
     },
   },
 };
-export const ref = (name) => ({ $ref: '#/components/schemas/' + name });
-export const paginated = (name) => ({
-  type: 'object',
-  properties: { items: { type: 'array', items: ref(name) }, pagination: ref('Pagination') },
-});
+export function ref(name) {
+  return { $ref: '#/components/schemas/' + name };
+}
+export function paginated(name) {
+  return {
+    type: 'object',
+    properties: { items: { type: 'array', items: ref(name) }, pagination: ref('Pagination') },
+  };
+}

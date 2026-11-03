@@ -25,12 +25,18 @@ import {
   up as calendarUp,
   down as calendarDown,
 } from '../../../migrations/202610310005-calendar-default-view.js';
+import {
+  migrationName as deleteName,
+  up as deleteUp,
+  down as deleteDown,
+} from '../../../migrations/202611030006-payment-delete-permission.js';
 const migrations = [
   { name: initialName, up: initialUp, down: initialDown },
   { name: paymentsName, up: paymentsUp, down: paymentsDown },
   { name: ledgerName, up: ledgerUp, down: ledgerDown },
   { name: depositsName, up: depositsUp, down: depositsDown },
   { name: calendarName, up: calendarUp, down: calendarDown },
+  { name: deleteName, up: deleteUp, down: deleteDown },
 ];
 const knownHistory = (history) =>
   history.length <= migrations.length &&

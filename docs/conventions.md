@@ -170,3 +170,38 @@ dès leur succès ou leur échec. Il ne conserve aucun cache de données métier
 Chaque écriture et changement de jeton CSRF invalide le partage avant les lectures
 suivantes ; la file HTTP maintient leur ordre. Les requêtes avec options spécifiques
 (headers, signal, etc.) ne sont pas partagées, et aucune écriture n’est dédupliquée.
+
+## Suppression et récapitulatif des paiements
+
+DELETE /payments/:id exige payments.delete, un UUID, une version entière et
+confirmed=true, ainsi que session, origine autorisée et CSRF. Le service
+revérifie le droit dans la transaction, verrouille le paiement et refuse une
+version dépassée. La suppression définitive et l’audit minimal payments.delete
+sont dans le même commit ; aucune donnée personnelle ni montant dans cet audit.
+Le paiement disparaît des totaux et de la fiche patient. Le paiement d’origine
+mémorisé pour l’idempotence est conservé afin de refuser le rejeu après suppression
+avec 409 ; une clé déjà utilisée ne permet jamais de recréer ce paiement.
+La confirmation mentionne montant, date, moyen et éventuel dépôt déjà effectué.
+Bouton et notification sont rouges. Ni lecture, ni création, ni dépôt n’accordent
+le droit de suppression. La migration 006 l’attribue uniquement à ADMIN ; les rôles
+personnalisés doivent le recevoir explicitement dans la gestion des permissions.
+
+GET /patients/:id/payments exige patients.read et payments.read, côté service
+également. Les résultats sont isolés au patient désigné, triés par date puis
+création décroissantes et UUID croissant, paginés et projetés explicitement.
+Le total et la répartition incluent toutes les dates, toutes les pages et les
+moyens désactivés. Liste et totaux sont lus dans une même transaction cohérente.
+Les patients désactivés restent consultables. Les onglets reprennent les bordures
+et variables de GreenDesk, avec aria-selected, panneaux associés, flèches et
+Home/End. La lecture des paiements commence à l’ouverture de l’onglet ; chaque
+mutation recharge les données et la suppression revient à la première page.
+
+## Date des paiements
+
+Un paiement ne peut pas être créé après le jour courant Europe/Paris. Le serveur
+calcule cette limite à chaque création dans le service et renvoie 422 avec le
+champ date en cas de refus, avant toute mutation métier ou clé d’idempotence.
+Le bouton du dashboard est désactivé pour une date sélectionnée future. La
+modale limite le champ date à aujourd’hui, affiche l’erreur Bootstrap et désactive
+la validation si la date saisie est future. Les paiements d’aujourd’hui ou des
+jours précédents restent autorisés ; les consultations ne sont pas limitées.

@@ -1254,3 +1254,105 @@ dialog::backdrop {
     align-items: start;
   }
 }
+
+.detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.detail-tabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  padding: 0.65rem 0.8rem;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+.detail-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--brand-forest);
+  color: var(--brand-forest-dark);
+}
+.payment-row-heading {
+  --payment-action-size: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.15rem 0.5rem;
+  width: 100%;
+}
+.payment-row-heading > div:first-child {
+  display: contents;
+}
+.payment-row-heading > div:first-child > strong {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.payment-row-heading > div:first-child > span {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.payment-row-actions {
+  grid-column: 2;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--payment-action-size);
+}
+.payment-row-actions > strong {
+  line-height: 1;
+  white-space: nowrap;
+}
+.payment-delete-control {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.payment-delete-control .payment-delete-button {
+  --bs-btn-border-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--payment-action-size);
+  height: var(--payment-action-size);
+  min-height: var(--payment-action-size);
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+.payment-delete-button svg {
+  display: block;
+  flex: 0 0 auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .payment-row-heading {
+    --payment-action-size: 32px;
+  }
+}
+.payment-method-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
+}
+.payment-method-totals > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+}
+.payment-method-totals dt {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.payment-method-totals dd {
+  margin: 0.4rem 0 0;
+  font-weight: 600;
+}

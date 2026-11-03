@@ -49,6 +49,8 @@ const preview = {
 export function responseSchema(action) {
   if (['calendarSettingsGet', 'calendarSettingsUpdate'].includes(action))
     return ref('CalendarSettings');
+  if (action === 'paymentDelete') return ref('PaymentDeleted');
+  if (action === 'patientPayments') return ref('PatientPayments');
   if (action === 'paymentsSummary') return ref('PaymentSummary');
   if (action === 'paymentsList') return paginated('Payment');
   if (action === 'paymentPatients') return paginated('PaymentPatient');
@@ -193,6 +195,12 @@ for (const route of routes) {
     ...(route.body
       ? {
           requestBody: {
+            ...(route.action === 'paymentsCreate'
+              ? {
+                  description:
+                    'La date doit être au plus tard celle du jour courant Europe/Paris, calculée à chaque requête côté serveur. Les dates futures sont refusées avec HTTP 422 et un détail sur le champ date.',
+                }
+              : {}),
             ...(route.action === 'settingsUpdate'
               ? {
                   description:

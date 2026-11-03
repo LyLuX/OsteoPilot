@@ -4,6 +4,10 @@ export const depositMethods = ['cash', 'cheque'];
 export const paymentDepositInput = z
   .object({ bankDeposited: z.boolean(), version: z.number().int().min(1).max(4294967294) })
   .strict();
+export const paymentDeleteInput = z
+  .object({ version: z.number().int().min(1).max(4294967295), confirmed: z.literal(true) })
+  .strict();
+export const patientPaymentsQuery = z.object({ ...paging }).strict();
 const civilDate = z.iso.date().refine((value) => value >= '1000-01-01' && value <= '9999-12-31');
 export const paymentInput = z
   .object({

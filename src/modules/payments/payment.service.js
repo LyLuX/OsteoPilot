@@ -1,3 +1,5 @@
+import { todayInParis } from '../../core/civil-date.js';
+import { Transaction } from 'sequelize';
 import { AppError, assert } from '../../core/errors.js';
 import { parse, pageResult, uuid } from '../../core/validation.js';
 import { digest } from '../auth/auth.service.js';
@@ -8,6 +10,8 @@ import { IdempotencyRepository } from '../../core/database/idempotency.repositor
 import { PaymentRepository } from './payment.repository.js';
 import {
   paymentInput,
+  paymentDeleteInput,
+  patientPaymentsQuery,
   paymentDepositInput,
   depositMethods,
   paymentQuery,
@@ -26,6 +30,54 @@ export class PaymentService {
   async list(query) {
     query = parse(paymentQuery, query);
     return pageResult(await this.repository.list(query), query, publicPayment);
+  }
+  async remove(token, csrf, id, values) {
+    id = parse(uuid, id);
+    const input = parse(paymentDeleteInput, values);
+    return this.auth.write(token, csrf, 'payments.delete', async (ctx, tx) => {
+      const row = await this.repository.findForUpdate(id, tx);
+      assert(row, 'Paiement introuvable.', 404);
+      assert(
+        row.version === input.version,
+        'Ce paiement a changé. Actualisez la liste avant de le supprimer.',
+        409,
+      );
+      await this.repository.remove(row, tx);
+      await recordAudit(
+        this.db,
+        { actorId: ctx.user.id, action: 'payments.delete', entity: 'payment', entityId: id },
+        tx,
+      );
+      return { id };
+    });
+  }
+  async patientPayments(token, id, query) {
+    id = parse(uuid, id);
+    query = parse(patientPaymentsQuery, query);
+    return this.db.sequelize.transaction(
+      { isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ },
+      async (tx) => {
+        const context = await this.auth.authenticate(token, tx);
+        this.auth.permit(context, 'patients.read');
+        this.auth.permit(context, 'payments.read');
+        assert(await this.repository.patientExists(id, tx), 'Patient introuvable.', 404);
+        const result = await this.repository.patientPayments(id, query, tx);
+        const rows = await this.repository.patientTotals(id, tx);
+        const methods = Object.fromEntries(paymentMethodCodes.map((code) => [code, 0]));
+        let totalCents = 0;
+        for (const row of rows) {
+          const cents = Number(row.amountCents);
+          assert(
+            Number.isSafeInteger(cents) && cents >= 0 && Number.isSafeInteger(totalCents + cents),
+            'Montants hors limites.',
+            422,
+          );
+          methods[row.method] = cents;
+          totalCents += cents;
+        }
+        return { ...pageResult(result, query, publicPayment), summary: { totalCents, methods } };
+      },
+    );
   }
   async patients(query) {
     query = parse(paymentPatientQuery, query);
@@ -108,6 +160,10 @@ export class PaymentService {
       422,
     );
     return this.auth.write(token, csrf, 'payments.create', async (ctx, tx) => {
+      if (input.date > todayInParis()) {
+        const message = 'La date du paiement ne peut pas être postérieure à aujourd’hui.';
+        throw new AppError(message, 422, [{ field: 'date', message }]);
+      }
       const keyHash = digest(key);
       const requestHash = digest(JSON.stringify({ operation: 'payments.create', input }));
       const existing = await this.idempotency.find(ctx.user.id, keyHash, tx);
@@ -117,7 +173,13 @@ export class PaymentService {
           'Clé déjà utilisée pour une autre requête.',
           409,
         );
-        return publicPayment(existing.result);
+        const row = await this.repository.findForUpdate(existing.result.id, tx);
+        assert(
+          row,
+          'Ce paiement a été supprimé. La clé de création ne peut pas être réutilisée.',
+          409,
+        );
+        return publicPayment(row);
       }
       const settings = await this.settings.find(tx);
       if (!settings?.paymentMethods?.includes(input.method))
