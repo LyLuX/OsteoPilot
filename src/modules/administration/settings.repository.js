@@ -7,12 +7,16 @@ const attributes = [
   'email',
   'timezone',
   'paymentMethods',
+  'tariffs',
   'defaultCalendarView',
   'updatedAt',
 ];
 export class SettingsRepository {
   constructor(db) {
     this.model = db.models.Settings;
+  }
+  tariffs() {
+    return this.model.findOne({ attributes: ['tariffs'] });
   }
   calendar() {
     return this.model.findOne({ attributes: ['defaultCalendarView'] });

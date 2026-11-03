@@ -18,6 +18,23 @@ export const components = {
         },
       },
     },
+    Tariff: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id', 'label', 'amountCents', 'version'],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        label: { type: 'string', minLength: 1, maxLength: 100 },
+        amountCents: { type: 'integer', minimum: 1, maximum: 99999999 },
+        version: { type: 'integer', minimum: 1 },
+      },
+    },
+    Tariffs: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['tariffs'],
+      properties: { tariffs: { type: 'array', maxItems: 100, items: ref('Tariff') } },
+    },
     PaymentDeleted: {
       type: 'object',
       additionalProperties: false,
@@ -241,6 +258,7 @@ export const components = {
         email: { type: 'string' },
         timezone: { type: 'string', enum: ['Europe/Paris'] },
         paymentMethods: { $ref: '#/components/schemas/PaymentMethods' },
+        tariffs: { type: 'array', maxItems: 100, items: ref('Tariff') },
         defaultCalendarView: { type: 'string', enum: calendarViews, default: 'month' },
         updatedAt: { type: 'string', format: 'date-time' },
       },

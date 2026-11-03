@@ -7,12 +7,13 @@ export async function up(db) {
   const qi = db.sequelize.getQueryInterface();
   // DDL MySQL : commits implicites, jamais de fausse promesse de rollback.
   for (const [table, currentAttributes] of Object.entries(definitions)) {
-    // Les fonctionnalités suivantes appartiennent aux migrations 002 à 005.
+    // Les fonctionnalités suivantes appartiennent aux migrations suivantes.
     if (table === 'Payments') continue;
     const attributes = Object.fromEntries(
       Object.entries(currentAttributes).filter(
         ([field]) =>
-          table !== 'Settings' || !['paymentMethods', 'defaultCalendarView'].includes(field),
+          table !== 'Settings' ||
+          !['paymentMethods', 'defaultCalendarView', 'tariffs'].includes(field),
       ),
     );
     await qi.createTable(

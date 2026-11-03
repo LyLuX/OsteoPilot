@@ -57,6 +57,13 @@ beforeAll(async () => {
   });
   admin = await db.models.Users.findOne({ where: { email: 'admin@example.invalid' } });
   session = await auth.login('admin@example.invalid', 'Phrase de test uniquement 123!');
+  for (const amountCents of [1, 101, 202, 303, 404, 1050, 2051, 1001, 2345, 4321, 12345, 99999]) {
+    const tariff = await administration.saveTariff(session.token, session.csrfToken, null, {
+      label: 'Tarif de test ' + amountCents,
+      amountCents,
+    });
+    fixtureTariffIds.set(amountCents, tariff.id);
+  }
 });
 afterEach(() => jest.restoreAllMocks());
 afterAll(async () => db.sequelize.close());
@@ -84,6 +91,7 @@ test('migration des règlements depuis le schéma initial : informations du cabi
           '202610290004-payment-bank-deposits.js',
           '202610310005-calendar-default-view.js',
           '202611030006-payment-delete-permission.js',
+          '202611030007-payment-tariffs.js',
         ],
       },
       { transaction },
@@ -619,11 +627,13 @@ test('règlements : panne audit après écriture annule aussi la sélection', as
   expect(await db.models.AuditLogs.count()).toBe(count);
 });
 
+const fixtureTariffIds = new Map();
 const paymentValues = (patientId, overrides = {}) => ({
   patientId,
   date: '2026-10-29',
   method: 'cash',
   amountCents: 1050,
+  tariffId: fixtureTariffIds.get(overrides.amountCents ?? 1050) ?? fixtureTariffIds.get(1050),
   ...overrides,
 });
 async function paymentPatient() {
@@ -1055,6 +1065,7 @@ test('migration du dépôt depuis des paiements existants : montants préservés
           '202610290004-payment-bank-deposits.js',
           '202610310005-calendar-default-view.js',
           '202611030006-payment-delete-permission.js',
+          '202611030007-payment-tariffs.js',
         ],
       },
       { transaction },
@@ -1215,6 +1226,7 @@ test('migration de la vue initiale : mois par défaut et préférences préserv�
         name: [
           '202610310005-calendar-default-view.js',
           '202611030006-payment-delete-permission.js',
+          '202611030007-payment-tariffs.js',
         ],
       },
       { transaction },
@@ -1462,7 +1474,249 @@ test('récapitulatif patient : liste et total cohérents pendant une suppression
   expect(refreshed.summary.totalCents).toBe(0);
 });
 
+test('tarifs : lecture minimale pour le paiement et ajout/modification indépendants avec audit atomique', async () => {
+  const before = await administration.settings();
+  const writer = await restrictedUser(['payments.create']);
+  const get = () =>
+    request(app)
+      .get('/api/v1/settings/tariffs')
+      .set('Cookie', 'osteopilot.access=' + writer.session.token);
+  const read = await get();
+  expect(read.status).toBe(200);
+  expect(Object.keys(read.body.data)).toEqual(['tariffs']);
+  expect(
+    read.body.data.tariffs.slice(0, 2).map(({ label, amountCents }) => ({ label, amountCents })),
+  ).toEqual([
+    { label: 'Consultation enfant/nourrisson', amountCents: 4500 },
+    { label: 'Consultation adulte', amountCents: 5500 },
+  ]);
+  expect(JSON.stringify(read.body.data)).not.toMatch(/email|phone|address|timezone/);
+  const send = (method, path, body, token = session.token, csrf = session.csrfToken) =>
+    request(app)
+      [method]('/api/v1' + path)
+      .set('Cookie', 'osteopilot.access=' + token)
+      .set('Origin', config.publicUrl)
+      .set('X-CSRF-Token', csrf)
+      .send(body);
+  const input = { label: 'Consultation de test complémentaire', amountCents: 6750 };
+  expect(
+    (await send('post', '/settings/tariffs', input, writer.session.token, writer.session.csrfToken))
+      .status,
+  ).toBe(403);
+  expect((await send('post', '/settings/tariffs', input, session.token, 'invalide')).status).toBe(
+    403,
+  );
+  for (const body of [
+    { ...input, amountCents: 0 },
+    { ...input, amountCents: 1.5 },
+    { ...input, label: '' },
+    { ...input, label: 'x'.repeat(101) },
+    { ...input, force: true },
+  ])
+    expect((await send('post', '/settings/tariffs', body)).status).toBe(422);
+  const created = await send('post', '/settings/tariffs', input);
+  expect(created.status).toBe(201);
+  const tariff = created.body.data;
+  expect(tariff).toMatchObject({ ...input, version: 1 });
+  expect(tariff.id).toMatch(/^[a-f0-9-]{36}$/);
+  const updated = await send('patch', '/settings/tariffs/' + tariff.id, {
+    label: input.label,
+    amountCents: 6800,
+    version: 1,
+  });
+  expect(updated.status).toBe(200);
+  expect(updated.body.data.version).toBe(2);
+  expect(
+    (
+      await send('patch', '/settings/tariffs/' + tariff.id, {
+        label: input.label,
+        amountCents: 6900,
+        version: 1,
+      })
+    ).status,
+  ).toBe(409);
+  expect(
+    (
+      await send('post', '/settings/tariffs', {
+        ...input,
+        label: '  ' + input.label.toUpperCase() + '  ',
+      })
+    ).status,
+  ).toBe(422);
+  const after = await administration.settings();
+  expect({ ...after, tariffs: before.tariffs, updatedAt: before.updatedAt }).toEqual(before);
+  const audit = await db.models.AuditLogs.findAll({ where: { entityId: tariff.id } });
+  expect(audit).toHaveLength(2);
+  expect(JSON.stringify(audit)).not.toMatch(/label|amountCents|Consultation/);
+  const stable = await administration.settings();
+  const count = await db.models.AuditLogs.count();
+  jest.spyOn(db.models.AuditLogs, 'create').mockRejectedValueOnce(new Error('Panne audit tarif'));
+  await expect(
+    administration.saveTariff(session.token, session.csrfToken, tariff.id, {
+      label: input.label,
+      amountCents: 7000,
+      version: 2,
+    }),
+  ).rejects.toThrow('Panne audit tarif');
+  expect(await administration.settings()).toEqual(stable);
+  expect(await db.models.AuditLogs.count()).toBe(count);
+  const denied = await restrictedUser(['settings.read']);
+  expect(
+    (
+      await request(app)
+        .get('/api/v1/settings/tariffs')
+        .set('Cookie', 'osteopilot.access=' + denied.session.token)
+    ).status,
+  ).toBe(403);
+});
+
+test('tarifs : montant serveur, tarif requis, prix obsolète refusé et paiements antérieurs préservés', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const tariff = await administration.saveTariff(session.token, session.csrfToken, null, {
+    label: 'Tarif historique de test',
+    amountCents: 5150,
+  });
+  const values = { ...paymentValues(patient.id), tariffId: tariff.id, amountCents: 5150 };
+  const key = randomUUID();
+  const payment = await payments.create(session.token, session.csrfToken, values, key);
+  const before = await snapshot();
+  await expect(
+    payments.create(
+      session.token,
+      session.csrfToken,
+      { ...values, tariffId: randomUUID() },
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ status: 422 });
+  const { tariffId: omitted, ...noTariff } = values;
+  expect(omitted).toBe(tariff.id);
+  await expect(
+    payments.create(session.token, session.csrfToken, noTariff, randomUUID()),
+  ).rejects.toMatchObject({ status: 422 });
+  await expect(
+    payments.create(session.token, session.csrfToken, { ...values, amountCents: 1 }, randomUUID()),
+  ).rejects.toMatchObject({
+    status: 409,
+    details: [{ field: 'tariffId', message: expect.any(String) }],
+  });
+  expect(await snapshot()).toEqual(before);
+  const changed = await administration.saveTariff(session.token, session.csrfToken, tariff.id, {
+    label: tariff.label,
+    amountCents: 5250,
+    version: 1,
+  });
+  await expect(
+    payments.create(session.token, session.csrfToken, values, randomUUID()),
+  ).rejects.toMatchObject({ status: 409 });
+  expect((await payments.create(session.token, session.csrfToken, values, key)).amountCents).toBe(
+    5150,
+  );
+  expect((await db.models.Payments.findByPk(payment.id)).amountCents).toBe(5150);
+  const next = await payments.create(
+    session.token,
+    session.csrfToken,
+    { ...values, amountCents: changed.amountCents },
+    randomUUID(),
+  );
+  expect(next.amountCents).toBe(5250);
+});
+
+test('tarifs : ajouts concurrents sans perte et plafond de 100 tarifs', async () => {
+  const created = await Promise.all(
+    ['A', 'B'].map((label) =>
+      administration.saveTariff(session.token, session.csrfToken, null, {
+        label: 'Tarif concurrent ' + label,
+        amountCents: 100,
+      }),
+    ),
+  );
+  const settings = await administration.settings();
+  for (const tariff of created)
+    expect(settings.tariffs.some((item) => item.id === tariff.id)).toBe(true);
+  const saved = settings.tariffs;
+  await db.sequelize.transaction(async (transaction) => {
+    const row = await db.models.Settings.findOne({ transaction });
+    await row.update(
+      {
+        tariffs: Array.from({ length: 100 }, (_, index) => ({
+          id: randomUUID(),
+          label: 'Tarif limite ' + index,
+          amountCents: 100,
+          version: 1,
+        })),
+      },
+      { transaction },
+    );
+  });
+  try {
+    await expect(
+      administration.saveTariff(session.token, session.csrfToken, null, {
+        label: 'Tarif en trop',
+        amountCents: 100,
+      }),
+    ).rejects.toMatchObject({ status: 422 });
+  } finally {
+    await db.sequelize.transaction(async (transaction) => {
+      const row = await db.models.Settings.findOne({ transaction });
+      await row.update({ tariffs: saved }, { transaction });
+    });
+  }
+});
+
+test('migration 007 : tarifs initiaux, reprise sans écrasement, down/up sans modification des paiements', async () => {
+  const count = await db.models.Payments.count();
+  const values = await db.models.Payments.findAll({
+    attributes: ['id', 'amountCents'],
+    order: [['id', 'ASC']],
+    raw: true,
+  });
+  await undoMigration(db, { confirmDatabase: safeName });
+  expect(
+    (await db.sequelize.getQueryInterface().describeTable('Settings')).tariffs,
+  ).toBeUndefined();
+  await migrate(db);
+  expect(
+    (await administration.tariffs()).tariffs.map(({ label, amountCents }) => ({
+      label,
+      amountCents,
+    })),
+  ).toEqual([
+    { label: 'Consultation enfant/nourrisson', amountCents: 4500 },
+    { label: 'Consultation adulte', amountCents: 5500 },
+  ]);
+  const first = (await administration.tariffs()).tariffs[0];
+  await administration.saveTariff(session.token, session.csrfToken, first.id, {
+    label: first.label,
+    amountCents: 4600,
+    version: 1,
+  });
+  await db.sequelize.transaction((transaction) =>
+    db.sequelize
+      .getQueryInterface()
+      .bulkDelete('SequelizeMeta', { name: '202611030007-payment-tariffs.js' }, { transaction }),
+  );
+  await migrate(db);
+  expect((await administration.tariffs()).tariffs[0].amountCents).toBe(4600);
+  expect(await db.models.Payments.count()).toBe(count);
+  expect(
+    await db.models.Payments.findAll({
+      attributes: ['id', 'amountCents'],
+      order: [['id', 'ASC']],
+      raw: true,
+    }),
+  ).toEqual(values);
+  await undoMigration(db, { confirmDatabase: safeName });
+  const qi = db.sequelize.getQueryInterface();
+  jest.spyOn(qi, 'bulkInsert').mockRejectedValueOnce(new Error('Panne historique tarifs'));
+  await expect(migrate(db)).rejects.toThrow('Panne historique tarifs');
+  expect((await db.models.Settings.findOne({ attributes: ['tariffs'] })).tariffs).toBeNull();
+  expect((await inspectDatabase(db)).history).toHaveLength(6);
+  await migrate(db);
+});
+
 test('migration 006 : droit de suppression ADMIN, down/up et transaction sans attribution partielle', async () => {
+  await undoMigration(db, { confirmDatabase: safeName }); // 007
   const before = await snapshot();
   await undoMigration(db, { confirmDatabase: safeName });
   expect(await db.models.Permissions.count({ where: { name: 'payments.delete' } })).toBe(0);
@@ -1480,6 +1734,7 @@ test('migration 006 : droit de suppression ADMIN, down/up et transaction sans at
 });
 
 test('down : verrou partagé, historique inconnu et échec DDL sans retrait de l’historique', async () => {
+  await undoMigration(db, { confirmDatabase: safeName }); // 007
   await undoMigration(db, { confirmDatabase: safeName }); // 006 : permission sans DDL
   const before = (await inspectDatabase(db)).history;
   const connection = await db.sequelize.connectionManager.getConnection();
@@ -1527,7 +1782,7 @@ test('down : verrou partagé, historique inconnu et échec DDL sans retrait de l
   await migrate(db);
 });
 
-test('down/up des six migrations : colonnes, données conservées, permissions et reconstruction complète', async () => {
+test('down/up des sept migrations : colonnes, données conservées, permissions et reconstruction complète', async () => {
   const qi = db.sequelize.getQueryInterface();
   const undo = () => undoMigration(db, { confirmDatabase: safeName });
   const original = await inspectDatabase(db);
@@ -1535,6 +1790,7 @@ test('down/up des six migrations : colonnes, données conservées, permissions e
   const patientsBefore = await db.models.Patients.count();
   const paymentsBefore = await db.models.Payments.count();
   expect(paymentsBefore).toBeGreaterThan(0);
+  await undo(); // 007
   await undo(); // 006
   await undo();
   expect((await qi.describeTable('Settings')).defaultCalendarView).toBeUndefined();
@@ -1544,6 +1800,7 @@ test('down/up des six migrations : colonnes, données conservées, permissions e
     ...settingsBefore,
     defaultCalendarView: 'month',
   });
+  await undo(); // 007
   await undo(); // 006
   await undo(); // 005
   await undo(); // 004
@@ -1589,6 +1846,7 @@ test('down/up des six migrations : colonnes, données conservées, permissions e
   await initialUp(db);
   const baseline = await qi.describeTable('Settings');
   expect(baseline.paymentMethods).toBeUndefined();
+  expect(baseline.tariffs).toBeUndefined();
   expect(baseline.defaultCalendarView).toBeUndefined();
   expect((await qi.showAllTables()).some((table) => table.toLowerCase() === 'payments')).toBe(
     false,

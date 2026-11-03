@@ -23,13 +23,19 @@ vi.mock('../api/client.js', async (original) => ({
 let records;
 let acceptedMethods;
 let defaultView;
+let tariffs;
 beforeEach(() => {
   vi.clearAllMocks();
   records = [];
+  tariffs = [
+    { id: 'child', label: 'Consultation enfant/nourrisson', amountCents: 4500, version: 1 },
+    { id: 'adult', label: 'Consultation adulte', amountCents: 5500, version: 1 },
+  ];
   defaultView = 'month';
   acceptedMethods = ['cash', 'card'];
   mocks.can.mockReturnValue(true);
   mocks.get.mockImplementation(async (path, query) => {
+    if (path === '/settings/tariffs') return { tariffs: [...tariffs] };
     if (path === '/settings/calendar') return { defaultCalendarView: defaultView };
     if (path === '/payments/summary') {
       const days = new Map();
@@ -144,13 +150,17 @@ test('modale : patient obligatoire, montant en centimes et actualisation calendr
   await show();
   const dialog = await openPayment();
   await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
+  expect(
+    within(dialog).queryByRole('searchbox', { name: 'Rechercher un patient' }),
+  ).not.toBeInTheDocument();
+  expect(mocks.get).toHaveBeenCalledWith('/payments/patients', { page: 1, limit: 100 });
   expect(within(dialog).getByLabelText(/Date du paiement/)).toHaveValue('2026-10-29');
   expect(within(dialog).queryByRole('option', { name: 'Chèque' })).not.toBeInTheDocument();
   await userEvent.selectOptions(
     within(dialog).getByRole('combobox', { name: 'Patient *' }),
     patient.id,
   );
-  await userEvent.type(within(dialog).getByLabelText(/Montant en euros/), '60,50');
+  await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'adult');
   await userEvent.selectOptions(
     within(dialog).getByRole('combobox', { name: 'Moyen de paiement *' }),
     'card',
@@ -158,7 +168,13 @@ test('modale : patient obligatoire, montant en centimes et actualisation calendr
   await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
   expect(mocks.post).toHaveBeenCalledWith(
     '/payments',
-    { patientId: patient.id, date: '2026-10-29', method: 'card', amountCents: 6050 },
+    {
+      patientId: patient.id,
+      date: '2026-10-29',
+      method: 'card',
+      amountCents: 5500,
+      tariffId: 'adult',
+    },
     { headers: { 'Idempotency-Key': expect.stringMatching(/^[a-f0-9-]{36}$/) } },
   );
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -168,7 +184,7 @@ test('modale : patient obligatoire, montant en centimes et actualisation calendr
     ),
   ).toBeInTheDocument();
   const today = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
-  await waitFor(() => expect(within(today).getAllByText(/^60,50\s*€$/)).toHaveLength(2));
+  await waitFor(() => expect(within(today).getAllByText(/^55\s*€$/)).toHaveLength(2));
   expect(screen.getByText('Paiement enregistré.').closest('.toast')).toHaveClass(
     'bg-success-subtle',
   );
@@ -178,10 +194,9 @@ test('modale : validation Bootstrap et annulation sans création', async () => {
   await show();
   const dialog = await openPayment();
   await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
-  await userEvent.type(within(dialog).getByLabelText(/Montant en euros/), '0');
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
+  fireEvent.submit(dialog.querySelector('form'));
   expect(within(dialog).getByRole('combobox', { name: 'Patient *' })).toHaveClass('is-invalid');
-  expect(within(dialog).getByLabelText(/Montant en euros/)).toHaveClass('is-invalid');
+  expect(within(dialog).getByRole('combobox', { name: 'Tarif *' })).toHaveClass('is-invalid');
   expect(mocks.post).not.toHaveBeenCalled();
   await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -198,10 +213,10 @@ test('paiement refusé : formulaire conservé, erreur de champ et reprise avec l
     within(dialog).getByRole('combobox', { name: 'Patient *' }),
     patient.id,
   );
-  await userEvent.type(within(dialog).getByLabelText(/Montant en euros/), '10');
+  await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'child');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
   expect(screen.getByRole('alert')).toHaveTextContent('Enregistrement indisponible.');
-  expect(within(dialog).getByLabelText(/Montant en euros/)).toHaveValue('10');
+  expect(within(dialog).getByRole('combobox', { name: 'Tarif *' })).toHaveValue('child');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
   expect(mocks.post.mock.calls[1][2]).toEqual(mocks.post.mock.calls[0][2]);
 });
@@ -548,7 +563,9 @@ test('modale : date limitée à aujourd’hui, validation Bootstrap et enregistr
   fireEvent.change(within(dialog).getByRole('combobox', { name: 'Patient *' }), {
     target: { value: patient.id },
   });
-  fireEvent.change(within(dialog).getByLabelText(/Montant en euros/), { target: { value: '50' } });
+  fireEvent.change(within(dialog).getByRole('combobox', { name: 'Tarif *' }), {
+    target: { value: 'child' },
+  });
   fireEvent.change(date, { target: { value: '2026-10-30' } });
   expect(save).toBeDisabled();
   expect(date).toHaveClass('is-invalid');
@@ -562,4 +579,55 @@ test('modale : date limitée à aujourd’hui, validation Bootstrap et enregistr
   expect(save).toBeEnabled();
   fireEvent.change(date, { target: { value: '2026-10-28' } });
   expect(save).toBeEnabled();
+});
+
+test('tarif obligatoire : liste des consultations, sans saisie libre et bouton désactivé sans choix', async () => {
+  await show();
+  const dialog = await openPayment();
+  await within(dialog).findByRole('option', { name: /Consultation enfant.*45/ });
+  expect(
+    within(dialog).getByRole('option', { name: /Consultation adulte.*55/ }),
+  ).toBeInTheDocument();
+  expect(within(dialog).queryByLabelText(/Montant en euros/)).not.toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' })).toBeDisabled();
+});
+
+test('tarif modifié pendant la saisie : rechargement, choix explicite et nouveau montant', async () => {
+  await show();
+  const dialog = await openPayment();
+  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
+  await userEvent.selectOptions(
+    within(dialog).getByRole('combobox', { name: 'Patient *' }),
+    patient.id,
+  );
+  await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'adult');
+  tariffs = tariffs.map((tariff) =>
+    tariff.id === 'adult' ? { ...tariff, amountCents: 6000, version: 2 } : tariff,
+  );
+  mocks.post.mockRejectedValueOnce({
+    response: {
+      status: 409,
+      data: {
+        error: {
+          message: 'Le tarif a changé.',
+          details: [{ field: 'tariffId', message: 'Sélectionnez à nouveau le tarif.' }],
+        },
+      },
+    },
+  });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
+  await within(dialog).findByRole('option', { name: /Consultation adulte.*60/ });
+  expect(within(dialog).getByRole('combobox', { name: 'Tarif *' })).toHaveValue('');
+  expect(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' })).toBeDisabled();
+  await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'adult');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
+  expect(mocks.post.mock.calls[1][1]).toMatchObject({ tariffId: 'adult', amountCents: 6000 });
+});
+
+test('catalogue indisponible ou vide : enregistrement impossible', async () => {
+  tariffs = [];
+  await show();
+  const dialog = await openPayment();
+  await within(dialog).findByText('Aucun tarif configuré. Ajoutez un tarif dans le paramétrage.');
+  expect(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' })).toBeDisabled();
 });

@@ -1,3 +1,4 @@
+import TariffsPanel from './TariffsPanel.jsx';
 import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
 import { useId, useRef, useState } from 'react';
 import { api } from '../api/client.js';
@@ -198,6 +199,9 @@ export default function SettingsPage() {
             <CalendarSettingsForm settings={resource.data} />
           </Panel>
         </div>
+      )}
+      {resource.current && !resource.loading && !resource.error && resource.data && (
+        <TariffsPanel settings={resource.data} />
       )}
     </>
   );

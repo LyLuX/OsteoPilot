@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.7.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.8.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -304,3 +304,11 @@ action distincte payments.delete, confirmée et auditée avec contrôle de versi
 elle est disponible sur le dashboard et la fiche patient selon les droits.
 La migration 202611030006-payment-delete-permission.js ajoute ce droit à ADMIN,
 sans l’attribuer aux autres rôles et sans modifier les paiements existants.
+
+Les prix des paiements sont configurables dans le panneau Tarifs du paramétrage :
+Consultation enfant/nourrisson à 45 € et Consultation adulte à 55 € initialement.
+Les utilisateurs settings.update peuvent modifier les prix et ajouter des tarifs
+sans toucher aux autres paramètres. La modale propose uniquement ces tarifs ;
+le serveur refuse un tarif inconnu ou un prix devenu obsolète. Les montants déjà
+enregistrés sont conservés. La migration 202611030007-payment-tariffs.js prépare
+le catalogue ; l’API de création d’un paiement exige tariffId et amountCents.

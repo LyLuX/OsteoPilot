@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { tariffInput, tariffUpdateInput, publicTariffs } from './tariffs.js';
 import { calendarSettingsInput } from './calendar-settings.js';
 import { paymentMethodChangeInput, paymentMethodCodes } from './payment-methods.js';
 import { SettingsRepository, publicSettings } from './settings.repository.js';
 import bcrypt from 'bcrypt';
 import { Op } from 'sequelize';
-import { assert } from '../../core/errors.js';
+import { assert, AppError } from '../../core/errors.js';
 import {
   z,
   name,
@@ -236,6 +238,64 @@ export class AdministrationService {
         );
       }
       return { defaultCalendarView: row.defaultCalendarView };
+    });
+  }
+  async tariffs() {
+    const row = await this.settingsRepository.tariffs();
+    assert(row, 'Tarifs introuvables.', 404);
+    return publicTariffs(row);
+  }
+  async saveTariff(token, csrf, id, values) {
+    if (id) id = parse(uuid, id);
+    const input = parse(id ? tariffUpdateInput : tariffInput, values);
+    return this.auth.write(token, csrf, 'settings.update', async (ctx, tx) => {
+      const row = await this.settingsRepository.find(tx);
+      assert(row, 'Paramètres du cabinet introuvables.', 404);
+      const tariffs = publicTariffs(row).tariffs;
+      const index = id ? tariffs.findIndex((tariff) => tariff.id === id) : -1;
+      assert(!id || index >= 0, 'Tarif introuvable.', 404);
+      assert(
+        !id || tariffs[index].version === input.version,
+        'Ce tarif a changé. Rechargez le paramétrage avant de réessayer.',
+        409,
+      );
+      assert(id || tariffs.length < 100, 'Le cabinet peut configurer au maximum 100 tarifs.', 422);
+      if (
+        tariffs.some(
+          (tariff) =>
+            tariff.id !== id &&
+            tariff.label.toLocaleLowerCase('fr-FR') === input.label.toLocaleLowerCase('fr-FR'),
+        )
+      )
+        throw new AppError('Un tarif utilise déjà ce libellé.', 422, [
+          { field: 'label', message: 'Choisissez un libellé distinct.' },
+        ]);
+      if (
+        id &&
+        tariffs[index].label === input.label &&
+        tariffs[index].amountCents === input.amountCents
+      )
+        return tariffs[index];
+      const tariff = {
+        id: id || randomUUID(),
+        label: input.label,
+        amountCents: input.amountCents,
+        version: id ? tariffs[index].version + 1 : 1,
+      };
+      if (id) tariffs[index] = tariff;
+      else tariffs.push(tariff);
+      await this.settingsRepository.update(row, { tariffs }, tx);
+      await recordAudit(
+        this.db,
+        {
+          actorId: ctx.user.id,
+          action: id ? 'settings.tariffs.update' : 'settings.tariffs.create',
+          entity: 'tariff',
+          entityId: tariff.id,
+        },
+        tx,
+      );
+      return tariff;
     });
   }
   async saveSettings(token, csrf, values) {

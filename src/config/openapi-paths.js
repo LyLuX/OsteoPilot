@@ -47,6 +47,8 @@ const preview = {
   },
 };
 export function responseSchema(action) {
+  if (action === 'tariffsGet') return ref('Tariffs');
+  if (['tariffCreate', 'tariffUpdate'].includes(action)) return ref('Tariff');
   if (['calendarSettingsGet', 'calendarSettingsUpdate'].includes(action))
     return ref('CalendarSettings');
   if (action === 'paymentDelete') return ref('PaymentDeleted');
@@ -198,7 +200,7 @@ for (const route of routes) {
             ...(route.action === 'paymentsCreate'
               ? {
                   description:
-                    'La date doit être au plus tard celle du jour courant Europe/Paris, calculée à chaque requête côté serveur. Les dates futures sont refusées avec HTTP 422 et un détail sur le champ date.',
+                    'La date doit être au plus tard celle du jour courant Europe/Paris, calculée à chaque requête côté serveur. Les dates futures sont refusées avec HTTP 422 et un détail sur le champ date. tariffId est obligatoire ; amountCents doit correspondre au prix configuré à la sélection. Un prix devenu obsolète est refusé avec HTTP 409 et un détail tariffId. Le montant validé est conservé dans Payments sans être modifié par les changements ultérieurs de tarifs.',
                 }
               : {}),
             ...(route.action === 'settingsUpdate'

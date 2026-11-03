@@ -3,10 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import SettingsPage from './SettingsPage.jsx';
 import { NotificationProvider } from '../notifications/Notifications.jsx';
-const mocks = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), patch: vi.fn(), can: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  put: vi.fn(),
+  patch: vi.fn(),
+  post: vi.fn(),
+  can: vi.fn(),
+}));
 vi.mock('../api/client.js', async (original) => ({
   ...(await original()),
-  api: { get: mocks.get, put: mocks.put, patch: mocks.patch },
+  api: { get: mocks.get, put: mocks.put, patch: mocks.patch, post: mocks.post },
 }));
 vi.mock('../auth/AuthContext.jsx', () => ({ useAuth: () => ({ can: mocks.can }) }));
 let settings;
@@ -20,6 +26,10 @@ beforeEach(() => {
     timezone: 'Europe/Paris',
     paymentMethods: ['cash', 'card'],
     defaultCalendarView: 'month',
+    tariffs: [
+      { id: 'child', label: 'Consultation enfant/nourrisson', amountCents: 4500, version: 1 },
+      { id: 'adult', label: 'Consultation adulte', amountCents: 5500, version: 1 },
+    ],
   };
   mocks.can.mockReturnValue(true);
   mocks.get.mockImplementation(async () => settings);
@@ -27,7 +37,22 @@ beforeEach(() => {
     settings = { ...settings, ...values };
     return settings;
   });
-  mocks.patch.mockImplementation(async (path, { method, accepted, defaultCalendarView }) => {
+  mocks.post.mockImplementation(async (_, values) => {
+    const tariff = { ...values, id: 'added', version: 1 };
+    settings = { ...settings, tariffs: [...settings.tariffs, tariff] };
+    return tariff;
+  });
+  mocks.patch.mockImplementation(async (path, values) => {
+    if (path.startsWith('/settings/tariffs/')) {
+      const id = path.split('/').pop();
+      const tariff = { ...values, id, version: values.version + 1 };
+      settings = {
+        ...settings,
+        tariffs: settings.tariffs.map((item) => (item.id === id ? tariff : item)),
+      };
+      return tariff;
+    }
+    const { method, accepted, defaultCalendarView } = values;
     if (path === '/settings/calendar') {
       settings = { ...settings, defaultCalendarView };
       return { defaultCalendarView };
@@ -212,4 +237,71 @@ test('calendrier : verrouillage en cours et retour au choix confirmé avec erreu
   expect(select).toBeEnabled();
   expect(select).toHaveClass('is-invalid');
   expect(screen.getByText('Vérifiez la vue.')).toHaveClass('invalid-feedback');
+});
+
+test('tarifs : deux prix initiaux, modification et ajout indépendants des autres panneaux', async () => {
+  const user = userEvent.setup();
+  show();
+  const child = await screen.findByRole('group', { name: 'Consultation enfant/nourrisson' });
+  expect(within(child).getByLabelText('Montant en euros *')).toHaveValue('45,00');
+  expect(
+    within(screen.getByRole('group', { name: 'Consultation adulte' })).getByLabelText(
+      'Montant en euros *',
+    ),
+  ).toHaveValue('55,00');
+  await user.clear(screen.getByLabelText('Nom du cabinet *'));
+  await user.type(screen.getByLabelText('Nom du cabinet *'), 'Brouillon à conserver');
+  await user.clear(within(child).getByLabelText('Montant en euros *'));
+  await user.type(within(child).getByLabelText('Montant en euros *'), '47,50');
+  await user.click(within(child).getByRole('button', { name: 'Enregistrer ce tarif' }));
+  expect(mocks.patch).toHaveBeenCalledWith('/settings/tariffs/child', {
+    label: 'Consultation enfant/nourrisson',
+    amountCents: 4750,
+    version: 1,
+  });
+  expect(await screen.findByText('Tarif mis à jour.')).toBeInTheDocument();
+  const add = screen.getByRole('group', { name: 'Ajouter un tarif' });
+  await user.type(within(add).getByLabelText('Libellé du tarif *'), 'Consultation longue');
+  await user.type(within(add).getByLabelText('Montant en euros *'), '70');
+  await user.click(within(add).getByRole('button', { name: 'Ajouter le tarif' }));
+  expect(mocks.post).toHaveBeenCalledWith('/settings/tariffs', {
+    label: 'Consultation longue',
+    amountCents: 7000,
+  });
+  expect(await screen.findByRole('group', { name: 'Consultation longue' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Nom du cabinet *')).toHaveValue('Brouillon à conserver');
+  expect(mocks.put).not.toHaveBeenCalled();
+  expect(settings.paymentMethods).toEqual(['cash', 'card']);
+  expect(settings.defaultCalendarView).toBe('month');
+});
+
+test('tarifs : lecture seule et validation du montant avec Bootstrap', async () => {
+  mocks.can.mockImplementation((permission) => permission === 'settings.read');
+  show();
+  const child = await screen.findByRole('group', { name: 'Consultation enfant/nourrisson' });
+  expect(within(child).getByLabelText('Montant en euros *')).toBeDisabled();
+  expect(screen.queryByRole('group', { name: 'Ajouter un tarif' })).not.toBeInTheDocument();
+});
+
+test('tarifs : erreur serveur visible sans perdre la saisie', async () => {
+  const user = userEvent.setup();
+  mocks.post.mockRejectedValueOnce({
+    response: {
+      data: {
+        error: {
+          message: 'Libellé déjà utilisé.',
+          details: [{ field: 'label', message: 'Choisissez un libellé distinct.' }],
+        },
+      },
+    },
+  });
+  show();
+  const add = await screen.findByRole('group', { name: 'Ajouter un tarif' });
+  await user.type(within(add).getByLabelText('Libellé du tarif *'), 'Consultation adulte');
+  await user.type(within(add).getByLabelText('Montant en euros *'), '50');
+  await user.click(within(add).getByRole('button', { name: 'Ajouter le tarif' }));
+  expect(await within(add).findByText('Choisissez un libellé distinct.')).toHaveClass(
+    'invalid-feedback',
+  );
+  expect(within(add).getByLabelText('Libellé du tarif *')).toHaveValue('Consultation adulte');
 });

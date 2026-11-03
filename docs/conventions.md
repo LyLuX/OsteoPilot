@@ -205,3 +205,35 @@ Le bouton du dashboard est désactivé pour une date sélectionnée future. La
 modale limite le champ date à aujourd’hui, affiche l’erreur Bootstrap et désactive
 la validation si la date saisie est future. Les paiements d’aujourd’hui ou des
 jours précédents restent autorisés ; les consultations ne sont pas limitées.
+
+## Tarifs des paiements
+
+Settings.tariffs contient au maximum 100 tarifs publics (UUID, libellé de 1 à
+100 caractères, montant en centimes entiers positif et version). Les libellés
+sont distincts sans tenir compte de la casse ; plusieurs prestations peuvent
+partager un montant. La migration 007 initialise Consultation enfant/nourrisson
+à 4500 centimes et Consultation adulte à 5500 centimes. Elle ne touche pas aux
+paiements existants et préserve un catalogue déjà initialisé.
+
+GET /settings/tariffs exige payments.create et expose uniquement le catalogue.
+POST /settings/tariffs et PATCH /settings/tariffs/:id exigent settings.update,
+l’origine autorisée et le CSRF. Les modifications sont indépendantes des autres
+paramètres, sérialisées avec leurs audits settings.tariffs.create/update, sans
+libellé ni prix dans les audits. Une modification utilise la version courante ;
+un conflit exige le rechargement du paramétrage. La lecture complète du
+paramétrage reste soumise à settings.read.
+
+POST /payments exige désormais tariffId et amountCents. Le prix envoyé est celui
+affiché au choix du tarif ; le serveur le compare au catalogue verrouillé dans
+la transaction et utilise le prix configuré. Un tarif inconnu est refusé (422),
+un prix devenu obsolète est refusé (409, champ tariffId). La modale recharge alors
+le catalogue et exige un nouveau choix. Aucun montant libre n’est proposé.
+Le paiement conserve son montant à l’enregistrement : les futurs changements
+de prix ne modifient pas l’historique. Le rejeu d’une création déjà validée avec
+la même clé restitue le paiement initial, même après une modification du tarif.
+
+La modale de paiement n’affiche ni recherche ni pagination de patients. Elle
+charge tous les patients actifs par lots de 100 via l’API paginée existante,
+puis propose la liste complète. Une erreur sur un lot bloque la sélection et
+l’enregistrement jusqu’à une nouvelle tentative ; aucun résultat partiel n’est
+présenté comme complet. Fermer la modale arrête le parcours des pages suivantes.

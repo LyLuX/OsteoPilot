@@ -1,16 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
-import {
-  Field,
-  Pagination,
-  usePagination,
-  ResourceState,
-  useResource,
-  useTask,
-} from '../components/shared.jsx';
+import { Field, ResourceState, useResource, useTask } from '../components/shared.jsx';
+import { usePaymentPatients } from './usePaymentPatients.js';
 import { api } from '../api/client.js';
 import { createRequestId } from '../api/request-id.js';
-import { paymentMethods, parseMoney } from './money.js';
+import { paymentMethods, formatMoney } from './money.js';
 import { dateKey, todayInParis } from '../dashboard/calendar.js';
 export default function PaymentModal({
   date,
@@ -29,26 +23,18 @@ export default function PaymentModal({
     patientId: '',
     date,
     method: acceptedMethods[0] || '',
-    amountCents: '',
+    tariffId: '',
+    amountCents: 0,
   });
   const futureDate = values.date > today;
   const dateError = 'La date du paiement ne peut pas être postérieure à aujourd’hui.';
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
-  const { page, setPage, limit, setLimit } = usePagination(25);
-  const patients = useResource('/payments/patients', { search: query, page, limit });
+  const tariffs = useResource('/settings/tariffs');
+  const patients = usePaymentPatients();
   useEffect(() => {
     const node = dialog.current;
     node.showModal();
     return () => node.close();
   }, []);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setQuery(search);
-      setPage(1);
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [search, setPage]);
   const change = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }));
     key.current = createRequestId();
@@ -78,26 +64,33 @@ export default function PaymentModal({
       <BootstrapForm
         errors={task.fieldErrors}
         validate={() =>
-          parseMoney(values.amountCents) === null
-            ? {
-                amountCents:
-                  'Saisissez un montant positif, avec deux décimales maximum (999 999,99 € maximum).',
-              }
-            : {}
+          tariffs.data?.tariffs.some((tariff) => tariff.id === values.tariffId)
+            ? {}
+            : { tariffId: 'Choisissez un tarif disponible.' }
         }
         onSubmit={async () => {
           if (pending.current || futureDate) return;
           pending.current = true;
           try {
-            const result = await task.run(
-              () =>
-                api.post(
-                  '/payments',
-                  { ...values, amountCents: parseMoney(values.amountCents) },
-                  { headers: { 'Idempotency-Key': key.current } },
-                ),
-              'Paiement enregistré.',
-            );
+            const result = await task.run(async () => {
+              try {
+                return await api.post('/payments', values, {
+                  headers: { 'Idempotency-Key': key.current },
+                });
+              } catch (error) {
+                if (
+                  error.response?.status === 409 &&
+                  error.response?.data?.error?.details?.some(
+                    (detail) => detail.field === 'tariffId',
+                  )
+                ) {
+                  tariffs.reload();
+                  change('tariffId', '');
+                  change('amountCents', 0);
+                }
+                throw error;
+              }
+            }, 'Paiement enregistré.');
             if (result) onSaved(result);
           } finally {
             pending.current = false;
@@ -106,17 +99,6 @@ export default function PaymentModal({
       >
         <fieldset disabled={task.busy}>
           <legend className="visually-hidden">Informations du paiement</legend>
-          <Field
-            label="Rechercher un patient"
-            name="patientSearch"
-            type="search"
-            maxLength={100}
-            value={search}
-            onChange={(_, value) => {
-              setSearch(value);
-              change('patientId', '');
-            }}
-          />
           <ResourceState resource={patients} />
           <div className="field">
             <label htmlFor={titleId + '-patient'}>Patient *</label>
@@ -139,18 +121,6 @@ export default function PaymentModal({
                 ))}
             </FormControl>
           </div>
-          <Pagination
-            limit={limit}
-            setLimit={setLimit}
-            disabled={patients.loading || task.busy}
-            itemLabel="patient(s)"
-            data={patients.data?.pagination}
-            page={page}
-            setPage={(next) => {
-              setPage(next);
-              change('patientId', '');
-            }}
-          />
           {!patients.loading && !patients.error && patients.data?.items.length === 0 && (
             <p className="muted">Aucun patient actif trouvé.</p>
           )}
@@ -165,17 +135,41 @@ export default function PaymentModal({
             value={values.date}
             onChange={change}
           />
-          <Field
-            label="Montant en euros"
-            name="amountCents"
-            required
-            inputMode="decimal"
-            autoComplete="off"
-            maxLength={9}
-            value={values.amountCents}
-            onChange={change}
-            placeholder="Ex. : 60,00"
-          />
+          <ResourceState resource={tariffs} />
+          <div className="field">
+            <label htmlFor={titleId + '-tariff'}>Tarif *</label>
+            <FormControl
+              as="select"
+              id={titleId + '-tariff'}
+              name="tariffId"
+              required
+              value={values.tariffId}
+              disabled={tariffs.loading || Boolean(tariffs.error)}
+              onChange={(event) => {
+                const tariff = tariffs.data?.tariffs.find((item) => item.id === event.target.value);
+                change('tariffId', event.target.value);
+                change('amountCents', tariff?.amountCents ?? 0);
+              }}
+            >
+              <option value="">Choisir un tarif</option>
+              {tariffs.current &&
+                !tariffs.loading &&
+                !tariffs.error &&
+                tariffs.data?.tariffs.map((tariff) => (
+                  <option key={tariff.id} value={tariff.id}>
+                    {tariff.label} — {formatMoney(tariff.amountCents)}
+                  </option>
+                ))}
+            </FormControl>
+          </div>
+          {tariffs.current &&
+            !tariffs.loading &&
+            !tariffs.error &&
+            tariffs.data?.tariffs.length === 0 && (
+              <p className="alert alert-warning">
+                Aucun tarif configuré. Ajoutez un tarif dans le paramétrage.
+              </p>
+            )}
           <div className="field">
             <label htmlFor={titleId + '-method'}>Moyen de paiement *</label>
             <FormControl
@@ -209,7 +203,11 @@ export default function PaymentModal({
                 patients.loading ||
                 Boolean(patients.error) ||
                 acceptedMethods.length === 0 ||
-                futureDate
+                futureDate ||
+                tariffs.loading ||
+                Boolean(tariffs.error) ||
+                !tariffs.current ||
+                !values.tariffId
               }
             >
               Enregistrer le paiement

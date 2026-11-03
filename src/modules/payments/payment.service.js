@@ -186,13 +186,30 @@ export class PaymentService {
         throw new AppError('Ce moyen de paiement n’est pas accepté par le cabinet.', 422, [
           { field: 'method', message: 'Choisissez un moyen de paiement accepté.' },
         ]);
+      const tariff = settings?.tariffs?.find((tariff) => tariff.id === input.tariffId);
+      if (!tariff)
+        throw new AppError('Sélectionnez un tarif configuré dans le paramétrage.', 422, [
+          { field: 'tariffId', message: 'Choisissez un tarif disponible.' },
+        ]);
+      if (tariff.amountCents !== input.amountCents)
+        throw new AppError(
+          'Le montant de ce tarif a changé. Sélectionnez à nouveau le tarif.',
+          409,
+          [{ field: 'tariffId', message: 'Le tarif a changé. Sélectionnez-le à nouveau.' }],
+        );
       const patient = await this.repository.patient(input.patientId, tx);
       if (!patient || patient.archived)
         throw new AppError('Sélectionnez un patient actif.', 422, [
           { field: 'patientId', message: 'Sélectionnez un patient actif.' },
         ]);
       const memo = await this.idempotency.create({ userId: ctx.user.id, keyHash, requestHash }, tx);
-      const row = await this.repository.create({ ...input, createdBy: ctx.user.id }, tx);
+      const payment = Object.fromEntries(
+        ['patientId', 'date', 'method'].map((field) => [field, input[field]]),
+      );
+      const row = await this.repository.create(
+        { ...payment, amountCents: tariff.amountCents, createdBy: ctx.user.id },
+        tx,
+      );
       await recordAudit(
         this.db,
         { actorId: ctx.user.id, action: 'payments.create', entity: 'payment', entityId: row.id },

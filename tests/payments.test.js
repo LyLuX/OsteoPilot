@@ -10,6 +10,7 @@ import {
 } from '../src/modules/payments/payment.validator.js';
 const input = {
   patientId: '4a9fb270-9222-4e80-bf91-408c00df25a2',
+  tariffId: '01ce82e1-96e8-489a-914a-ec38097c45cd',
   date: '2026-10-29',
   method: 'cash',
   amountCents: 1,

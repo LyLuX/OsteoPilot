@@ -30,6 +30,11 @@ import {
   up as deleteUp,
   down as deleteDown,
 } from '../../../migrations/202611030006-payment-delete-permission.js';
+import {
+  migrationName as tariffsName,
+  up as tariffsUp,
+  down as tariffsDown,
+} from '../../../migrations/202611030007-payment-tariffs.js';
 const migrations = [
   { name: initialName, up: initialUp, down: initialDown },
   { name: paymentsName, up: paymentsUp, down: paymentsDown },
@@ -37,6 +42,7 @@ const migrations = [
   { name: depositsName, up: depositsUp, down: depositsDown },
   { name: calendarName, up: calendarUp, down: calendarDown },
   { name: deleteName, up: deleteUp, down: deleteDown },
+  { name: tariffsName, up: tariffsUp, down: tariffsDown },
 ];
 const knownHistory = (history) =>
   history.length <= migrations.length &&

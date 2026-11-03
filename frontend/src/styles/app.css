@@ -1356,3 +1356,14 @@ dialog::backdrop {
   margin: 0.4rem 0 0;
   font-weight: 600;
 }
+
+.tariff-form {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+.tariff-form legend {
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+  font-weight: 600;
+}

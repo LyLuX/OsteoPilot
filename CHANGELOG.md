@@ -2,6 +2,25 @@
 
 ## Non publié
 
+## 0.8.0 - 2026-11-03
+
+- [PATCH] La pagination et le sélecteur de taille de page sont retirés de la
+  modale de paiement. Tous les patients actifs restent disponibles dans la
+  liste déroulante : le chargement parcourt les pages de l’API en interne,
+  sans afficher une liste partielle en cas d’erreur.
+
+- [PATCH] Le champ Rechercher un patient est retiré de la modale de paiement,
+  ainsi que son filtrage temporisé. Le choix du patient s’effectue directement
+  dans la liste déroulante des patients actifs.
+
+- [MINOR] Le paramétrage dispose d’un panneau Tarifs indépendant pour modifier
+  les prix et ajouter des prestations, avec contrôle de version et audit atomique.
+  Les tarifs initiaux sont Consultation enfant/nourrisson à 45 € et Consultation
+  adulte à 55 €. La saisie des paiements utilise une liste déroulante de tarifs ;
+  le serveur contrôle le tarif et son prix, refuse un montant obsolète et préserve
+  les montants déjà enregistrés. La migration 007 initialise le catalogue sans
+  modifier les paiements existants et dispose d’un down de développement.
+
 ## 0.7.0 - 2026-11-03
 
 - [PATCH] L’enregistrement d’un paiement à une date future est bloqué : bouton

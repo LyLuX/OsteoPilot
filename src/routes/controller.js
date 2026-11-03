@@ -25,6 +25,9 @@ export function createControllers({ auth, patients, administration, payments }) 
       auth.clearCookie(res);
       return result;
     },
+    tariffsGet: () => administration.tariffs(),
+    tariffCreate: (req) => administration.saveTariff(token(req), csrf(req), null, req.body),
+    tariffUpdate: (req) => administration.saveTariff(token(req), csrf(req), id(req), req.body),
     paymentDelete: (req) => payments.remove(token(req), csrf(req), id(req), req.body),
     patientPayments: (req) => payments.patientPayments(token(req), id(req), req.query),
     paymentBankDeposit: (req) => payments.setBankDeposit(token(req), csrf(req), id(req), req.body),

@@ -1,3 +1,4 @@
+import { tariffInput, tariffUpdateInput } from '../modules/administration/tariffs.js';
 import {
   paymentInput,
   paymentDeleteInput,
@@ -27,6 +28,30 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'get',
+    path: '/settings/tariffs',
+    permission: 'payments.create',
+    action: 'tariffsGet',
+    summary: 'Lire uniquement les tarifs pour enregistrer un paiement',
+  },
+  {
+    method: 'post',
+    path: '/settings/tariffs',
+    permission: 'settings.update',
+    body: tariffInput,
+    status: 201,
+    action: 'tariffCreate',
+    summary: 'Ajouter un tarif indépendamment des autres paramètres',
+  },
+  {
+    method: 'patch',
+    path: '/settings/tariffs/:id',
+    permission: 'settings.update',
+    body: tariffUpdateInput,
+    action: 'tariffUpdate',
+    summary: 'Modifier un tarif avec contrôle de version sans changer les paiements existants',
+  },
   {
     method: 'delete',
     path: '/payments/:id',

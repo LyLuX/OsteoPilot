@@ -12,6 +12,7 @@ const civilDate = z.iso.date().refine((value) => value >= '1000-01-01' && value 
 export const paymentInput = z
   .object({
     patientId: uuid,
+    tariffId: uuid,
     date: civilDate,
     method: z.enum(paymentMethodCodes),
     amountCents: z.number().int().min(1).max(99999999),
