@@ -33,7 +33,7 @@ beforeEach(() => {
   });
   mocks.post.mockResolvedValue({ id: 'paiement-fictif' });
 });
-const show = () =>
+const show = (props = {}) =>
   render(
     <NotificationProvider>
       <PaymentModal
@@ -42,21 +42,24 @@ const show = () =>
         acceptedMethods={['cash']}
         onCancel={vi.fn()}
         onSaved={vi.fn()}
+        {...props}
       />
     </NotificationProvider>,
   );
 test('tous les patients au-delà du premier lot restent sélectionnables sans pagination visible', async () => {
   show();
   const select = screen.getByRole('combobox', { name: 'Patient *' });
-  await within(select).findByRole('option', { name: 'Exemple 150 Fictif' });
-  expect(within(select).getAllByRole('option')).toHaveLength(152);
+  await waitFor(() => expect(select).toBeEnabled());
+  fireEvent.click(select);
+  await screen.findByRole('option', { name: 'Exemple 150 Fictif' });
+  expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(151);
   expect(mocks.get).toHaveBeenCalledWith('/payments/patients', { page: 1, limit: 100 });
   expect(mocks.get).toHaveBeenCalledWith('/payments/patients', { page: 2, limit: 100 });
   expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
   expect(
     screen.queryByRole('combobox', { name: 'Nombre d’éléments par page' }),
   ).not.toBeInTheDocument();
-  fireEvent.change(select, { target: { value: 'patient-150' } });
+  fireEvent.click(screen.getByRole('option', { name: 'Exemple 150 Fictif' }));
   fireEvent.change(screen.getByRole('combobox', { name: 'Tarif *' }), {
     target: { value: tariff.id },
   });
@@ -75,13 +78,15 @@ test('erreur sur le second lot : aucune liste partielle puis rechargement comple
   const retry = await screen.findByRole('button', { name: 'Réessayer' });
   const select = screen.getByRole('combobox', { name: 'Patient *' });
   expect(select).toBeDisabled();
-  expect(within(select).getAllByRole('option')).toHaveLength(1);
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enregistrer le paiement' })).toBeDisabled();
   fail = false;
   fireEvent.click(retry);
-  await within(select).findByRole('option', { name: 'Exemple 150 Fictif' });
+  await waitFor(() => expect(select).toBeEnabled());
+  fireEvent.click(select);
+  await screen.findByRole('option', { name: 'Exemple 150 Fictif' });
   expect(select).toBeEnabled();
-  expect(within(select).getAllByRole('option')).toHaveLength(152);
+  expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(151);
 });
 test('fermeture pendant le premier lot : aucune requête vers les pages suivantes', async () => {
   let resolve;
@@ -99,4 +104,59 @@ test('fermeture pendant le premier lot : aucune requête vers les pages suivante
     resolve({ items: patients.slice(0, 100), pagination: { page: 1, totalPages: 2 } }),
   );
   expect(mocks.get.mock.calls.filter(([path]) => path === '/payments/patients')).toHaveLength(1);
+});
+
+test('chèque : numéro facultatif, validation et conservation des zéros initiaux à la création', async () => {
+  show({ acceptedMethods: ['cash', 'cheque'] });
+  expect(screen.queryByLabelText('Numéro de chèque')).not.toBeInTheDocument();
+  const patient = screen.getByRole('combobox', { name: 'Patient *' });
+  await waitFor(() => expect(patient).toBeEnabled());
+  fireEvent.click(patient);
+  fireEvent.click(await screen.findByRole('option', { name: 'Exemple 000 Fictif' }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Tarif *' }), {
+    target: { value: tariff.id },
+  });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Moyen de paiement *' }), {
+    target: { value: 'cheque' },
+  });
+  const number = screen.getByLabelText('Numéro de chèque');
+  expect(number).toHaveAttribute('type', 'text');
+  expect(number).toHaveAttribute('maxlength', '30');
+  fireEvent.change(number, { target: { value: 'abc' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
+  expect(mocks.post).not.toHaveBeenCalled();
+  expect(number).toHaveAttribute('aria-invalid', 'true');
+  fireEvent.change(number, { target: { value: '0012345' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
+  await waitFor(() =>
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/payments',
+      expect.objectContaining({ method: 'cheque', chequeNumber: '0012345' }),
+      expect.anything(),
+    ),
+  );
+});
+
+test('changer de moyen efface le numéro ; chèque sans numéro accepté', async () => {
+  show({ acceptedMethods: ['cheque', 'cash'] });
+  const patient = screen.getByRole('combobox', { name: 'Patient *' });
+  await waitFor(() => expect(patient).toBeEnabled());
+  fireEvent.click(patient);
+  fireEvent.click(await screen.findByRole('option', { name: 'Exemple 000 Fictif' }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Tarif *' }), {
+    target: { value: tariff.id },
+  });
+  fireEvent.change(screen.getByLabelText('Numéro de chèque'), { target: { value: '0012345' } });
+  const method = screen.getByRole('combobox', { name: 'Moyen de paiement *' });
+  fireEvent.change(method, { target: { value: 'cash' } });
+  expect(screen.queryByLabelText('Numéro de chèque')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
+  await waitFor(() => expect(mocks.post).toHaveBeenCalledOnce());
+  expect(mocks.post.mock.calls[0][1]).not.toHaveProperty('chequeNumber');
+  fireEvent.change(method, { target: { value: 'cheque' } });
+  expect(screen.getByLabelText('Numéro de chèque')).toHaveValue('');
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
+  await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(2));
+  expect(mocks.post.mock.calls[1][1]).toMatchObject({ method: 'cheque' });
+  expect(mocks.post.mock.calls[1][1]).not.toHaveProperty('chequeNumber');
 });

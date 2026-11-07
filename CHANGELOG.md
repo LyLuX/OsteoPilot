@@ -2,6 +2,32 @@
 
 ## Non publié
 
+## 0.9.0 - 2026-11-07
+
+- [MINOR] La saisie d’un paiement par chèque propose un numéro facultatif de
+  1 à 30 chiffres, conservé avec ses zéros initiaux. Le serveur valide ce champ
+  uniquement pour les chèques et le restitue dans les paiements, sans audit du
+  numéro. La migration additive 008 conserve les paiements existants sans numéro.
+
+- [MINOR] Le menu Gestion paiements > Déposer ouvre un tableau paginé de tous
+  les paiements, toutes dates confondues. La colonne Dépôt affiche uniquement
+  les statuts, dont Sur le compte pour les virements, sans commande de dépôt.
+  Le panneau du calendrier conserve le badge À déposer ou Déposé aligné à droite
+  sur la ligne du moyen de paiement, dans deux spans enfants de la même div. La
+  suppression avec confirmation est déplacée du calendrier vers ce tableau.
+  Une première colonne Déposer permet une sélection individuelle ou globale,
+  sur toutes les pages, des espèces ou des chèques à déposer, exclusivement.
+  La sélection globale permet des exceptions et conserve les choix à la pagination.
+  Les cases sont carrées et de taille standard, avec une cible tactile conservée ;
+  les icônes et libellés des moyens de paiement sont centrés sur la même ligne.
+  Les choix de sélection sont libellés Paiements en espèces et Paiements par chèque.
+
+- [PATCH] Le menu de sélection du patient est limité à 16 rem de hauteur avec
+  défilement vertical, adapté à l’espace disponible dans la modale. La sélection
+  conserve les labels, la validation Bootstrap et la navigation au clavier. Un fond
+  vert doux, une ombre légère et des options arrondies mettent la liste en valeur,
+  avec un repère plus visible pour le patient sélectionné.
+
 ## 0.8.0 - 2026-11-03
 
 - [PATCH] La pagination et le sélecteur de taille de page sont retirés de la

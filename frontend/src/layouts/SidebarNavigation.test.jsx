@@ -13,18 +13,14 @@ beforeEach(() => auth.can.mockImplementation(() => true));
 test('groupe actif ouvert et un seul groupe déplié ; clavier Entrée et Espace', async () => {
   const user = userEvent.setup();
   render(
-    <MemoryRouter initialEntries={['/patients/new']}>
+    <MemoryRouter initialEntries={['/patients']}>
       <SidebarNavigation />
     </MemoryRouter>,
   );
   const patients = screen.getByRole('button', { name: 'Gestion patientèle' });
   const administration = screen.getByRole('button', { name: 'Administration' });
   expect(patients).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByRole('link', { name: /Création d’un patient/ })).toHaveAttribute(
-    'aria-current',
-    'page',
-  );
-  expect(screen.getByRole('link', { name: 'Patientèle' })).not.toHaveAttribute('aria-current');
+  expect(screen.getByRole('link', { name: 'Patientèle' })).toHaveAttribute('aria-current', 'page');
   expect(screen.queryByRole('link', { name: /Utilisateurs/ })).not.toBeInTheDocument();
   administration.focus();
   await user.keyboard('{Enter}');
@@ -90,4 +86,25 @@ test('menu mobile : identifiants uniques, ouverture des groupes et fermeture apr
   await user.click(within(dialog).getByRole('link', { name: 'Patientèle' }));
   await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
   expect(menu).toHaveFocus();
+});
+
+test('Gestion paiements ouvre Déposer et respecte le droit de lecture', async () => {
+  const view = render(
+    <MemoryRouter initialEntries={['/payments/deposit']}>
+      <SidebarNavigation />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('button', { name: 'Gestion paiements' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  expect(screen.getByRole('link', { name: 'Déposer' })).toHaveAttribute('aria-current', 'page');
+  view.unmount();
+  auth.can.mockImplementation((permission) => permission === 'payments.deposit');
+  render(
+    <MemoryRouter>
+      <SidebarNavigation />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('button', { name: 'Gestion paiements' })).not.toBeInTheDocument();
 });

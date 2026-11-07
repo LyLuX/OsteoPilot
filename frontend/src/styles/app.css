@@ -1197,15 +1197,12 @@ dialog::backdrop {
   }
 }
 
-.payment-deposit-control {
+.payment-deposit-status {
   --deposit-status-color: var(--accent-amber);
   --deposit-status-background: color-mix(in srgb, var(--deposit-status-color) 12%, var(--surface));
 }
-.payment-deposit-control--deposited {
+.payment-deposit-status--deposited {
   --deposit-status-color: var(--brand-forest-dark);
-}
-.payment-deposit-button {
-  --action-color: var(--deposit-status-color);
 }
 .payment-list .payment-deposit-control {
   display: flex;
@@ -1291,7 +1288,8 @@ dialog::backdrop {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.payment-row-heading > div:first-child > span {
+.payment-row-heading > div:first-child > span,
+.payment-row-heading > div:first-child > .payment-method-line {
   grid-column: 1 / -1;
   grid-row: 2;
 }
@@ -1366,4 +1364,122 @@ dialog::backdrop {
   overflow-wrap: anywhere;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.scrollable-select {
+  --select-menu-max-height: 16rem;
+  position: relative;
+  min-width: 0;
+}
+.scrollable-select-trigger {
+  text-align: start;
+}
+.scrollable-select-trigger > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scrollable-select-menu {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 0.25rem);
+  max-height: min(var(--select-menu-max-height), var(--select-menu-available-height, 45dvh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-width: 0;
+  margin: 0;
+  padding: 0.375rem;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 0.5rem 1.5rem color-mix(in srgb, var(--brand-forest-dark) 14%, transparent),
+    0 0.125rem 0.375rem color-mix(in srgb, var(--brand-forest-dark) 6%, transparent);
+  scrollbar-color: color-mix(in srgb, var(--brand-forest) 35%, var(--surface)) transparent;
+  --bs-dropdown-bg: color-mix(in srgb, var(--brand-forest) 3%, var(--surface));
+  --bs-dropdown-border-color: color-mix(in srgb, var(--brand-forest) 32%, var(--border));
+  --bs-dropdown-color: var(--ink);
+  --bs-dropdown-link-color: var(--ink);
+  --bs-dropdown-link-hover-bg: var(--surface-subtle);
+}
+.scrollable-select-menu.opens-above {
+  top: auto;
+  bottom: calc(100% + 0.25rem);
+}
+.scrollable-select-menu [role='option'] {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 0.75rem;
+  border-radius: 0.5rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.scrollable-select-menu [aria-selected='true'] {
+  color: var(--brand-forest-dark);
+  background: color-mix(in srgb, var(--brand-forest) 12%, var(--surface));
+  box-shadow: inset 3px 0 var(--brand-forest);
+  font-weight: 600;
+}
+.scrollable-select-menu .is-highlighted {
+  color: var(--brand-forest-dark);
+  background: color-mix(in srgb, var(--brand-forest) 18%, var(--surface));
+}
+
+/* Payment method and deposit status share the calendar detail line. */
+.payment-method-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.payment-method-line > .muted {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.payment-method-line > .payment-deposit-status {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.payment-selection-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+.payment-selection-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.payment-selection-option .form-check-input {
+  width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+.payment-method-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  vertical-align: middle;
+}
+.payment-selection-panel fieldset {
+  min-width: 0;
+}
+.payment-deposits-table {
+  --payment-action-size: 44px;
+}
+@media (min-width: 768px) {
+  .payment-deposits-table .payment-selection-column,
+  .payment-deposits-table .payment-actions-column {
+    width: 6rem;
+  }
 }

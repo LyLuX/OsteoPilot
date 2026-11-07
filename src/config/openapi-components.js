@@ -35,6 +35,11 @@ export const components = {
       required: ['tariffs'],
       properties: { tariffs: { type: 'array', maxItems: 100, items: ref('Tariff') } },
     },
+    Payments: {
+      ...paginated('Payment'),
+      description:
+        'Liste paginée de tous les paiements sans filtre de date, y compris moyens et patients désactivés. Filtre facultatif par jour ou période inclusive de 366 jours maximum. Tri par date et création décroissantes, puis UUID croissant. Droit payments.read requis.',
+    },
     PaymentDeleted: {
       type: 'object',
       additionalProperties: false,
@@ -163,6 +168,7 @@ export const components = {
         'amountCents',
         'createdAt',
         'bankDeposited',
+        'chequeNumber',
         'version',
       ],
       properties: {
@@ -176,6 +182,13 @@ export const components = {
         },
         method: { type: 'string', enum: paymentMethodCodes },
         amountCents: { type: 'integer', minimum: 1, maximum: 99999999 },
+        chequeNumber: {
+          type: ['string', 'null'],
+          maxLength: 30,
+          pattern: '^[0-9]+$',
+          description:
+            'Numéro facultatif de chèque, conservé comme texte avec ses zéros initiaux. Null pour les autres moyens et les anciens paiements sans numéro.',
+        },
         bankDeposited: {
           type: ['boolean', 'null'],
           description:

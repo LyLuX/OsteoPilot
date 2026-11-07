@@ -93,6 +93,16 @@ async function show() {
   await screen.findByRole('group', { name: /^Calendrier / });
   return view;
 }
+async function patientReady(dialog) {
+  await waitFor(() =>
+    expect(within(dialog).getByRole('combobox', { name: 'Patient *' })).toBeEnabled(),
+  );
+}
+async function choosePatient(dialog) {
+  await patientReady(dialog);
+  await userEvent.click(within(dialog).getByRole('combobox', { name: 'Patient *' }));
+  await userEvent.click(within(dialog).getByRole('option', { name: 'Exemple Fictif' }));
+}
 async function openPayment() {
   const button = await screen.findByRole('button', { name: 'Enregistrer un paiement' });
   await waitFor(() => expect(button).toBeEnabled());
@@ -149,17 +159,14 @@ test('chaque jour vide affiche les moyens acceptés à zéro et le total, sélec
 test('modale : patient obligatoire, montant en centimes et actualisation calendrier/liste après création', async () => {
   await show();
   const dialog = await openPayment();
-  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
+  await patientReady(dialog);
   expect(
     within(dialog).queryByRole('searchbox', { name: 'Rechercher un patient' }),
   ).not.toBeInTheDocument();
   expect(mocks.get).toHaveBeenCalledWith('/payments/patients', { page: 1, limit: 100 });
   expect(within(dialog).getByLabelText(/Date du paiement/)).toHaveValue('2026-10-29');
   expect(within(dialog).queryByRole('option', { name: 'Chèque' })).not.toBeInTheDocument();
-  await userEvent.selectOptions(
-    within(dialog).getByRole('combobox', { name: 'Patient *' }),
-    patient.id,
-  );
+  await choosePatient(dialog);
   await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'adult');
   await userEvent.selectOptions(
     within(dialog).getByRole('combobox', { name: 'Moyen de paiement *' }),
@@ -193,7 +200,7 @@ test('modale : patient obligatoire, montant en centimes et actualisation calendr
 test('modale : validation Bootstrap et annulation sans création', async () => {
   await show();
   const dialog = await openPayment();
-  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
+  await patientReady(dialog);
   fireEvent.submit(dialog.querySelector('form'));
   expect(within(dialog).getByRole('combobox', { name: 'Patient *' })).toHaveClass('is-invalid');
   expect(within(dialog).getByRole('combobox', { name: 'Tarif *' })).toHaveClass('is-invalid');
@@ -208,11 +215,8 @@ test('paiement refusé : formulaire conservé, erreur de champ et reprise avec l
   });
   await show();
   const dialog = await openPayment();
-  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
-  await userEvent.selectOptions(
-    within(dialog).getByRole('combobox', { name: 'Patient *' }),
-    patient.id,
-  );
+  await patientReady(dialog);
+  await choosePatient(dialog);
   await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'child');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer le paiement' }));
   expect(screen.getByRole('alert')).toHaveTextContent('Enregistrement indisponible.');
@@ -428,37 +432,35 @@ test('chargement lent : aucun ancien total/liste, réponses dépassées ignorée
   expect(within(panel).queryByText('Dépassé Ancien')).not.toBeInTheDocument();
 });
 
-test('dépôt depuis le panneau : statut rafraîchi, montant et jour conservés', async () => {
-  records = [
-    {
-      id: 'cash-payment',
-      date: '2026-10-29',
-      method: 'cash',
-      amountCents: 700,
-      bankDeposited: false,
-      version: 1,
-    },
-  ];
-  await show();
-  const list = await screen.findByRole('list', { name: 'Paiements du jour' });
-  expect(within(list).getByText('À déposer')).toBeInTheDocument();
-  await userEvent.click(within(list).getByRole('button', { name: 'Déposer' }));
-  expect(await screen.findByText('Déposé en banque')).toBeInTheDocument();
-  expect(mocks.patch).toHaveBeenCalledWith('/payments/cash-payment/bank-deposit', {
-    bankDeposited: true,
-    version: 1,
-  });
-  expect(
-    screen.getByRole('heading', { name: 'jeudi 29 octobre 2026', level: 3 }),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/Total : 7\s*€/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Annuler le dépôt' }));
-  expect(await screen.findByText('À déposer')).toBeInTheDocument();
-  expect(mocks.patch).toHaveBeenLastCalledWith('/payments/cash-payment/bank-deposit', {
-    bankDeposited: false,
-    version: 2,
-  });
-});
+test.each([false, true])(
+  'panneau : badge de dépôt %s à côté du moyen, sans commande',
+  async (bankDeposited) => {
+    records = [
+      {
+        id: 'cash-payment',
+        date: '2026-10-29',
+        method: 'cash',
+        amountCents: 700,
+        bankDeposited,
+        version: 1,
+      },
+    ];
+    await show();
+    const list = await screen.findByRole('list', { name: 'Paiements du jour' });
+    const badge = within(list).getByText(bankDeposited ? 'Déposé' : 'À déposer');
+    const line = badge.parentElement;
+    expect(line.tagName).toBe('DIV');
+    expect(line).toHaveClass('payment-method-line');
+    expect([...line.children].map((child) => child.tagName)).toEqual(['SPAN', 'SPAN']);
+    expect(line.firstElementChild).toHaveTextContent('Espèces');
+    expect(line.lastElementChild).toBe(badge);
+    expect(within(list).queryByRole('button', { name: 'Déposer' })).not.toBeInTheDocument();
+    expect(
+      within(list).queryByRole('button', { name: 'Annuler le dépôt' }),
+    ).not.toBeInTheDocument();
+    expect(mocks.patch).not.toHaveBeenCalled();
+  },
+);
 
 test.each([
   ['week', 'Calendrier hebdomadaire', '2026-10-26', '2026-11-01'],
@@ -508,27 +510,14 @@ test('configuration lente puis erreur : aucun calendrier provisoire, reprise pos
   expect(await screen.findByRole('group', { name: 'Calendrier mensuel' })).toBeInTheDocument();
 });
 
-test('suppression depuis le dashboard : confirmation, liste et totaux du calendrier actualisés', async () => {
+test('dashboard : suppression déplacée vers la page Déposer même avec le droit', async () => {
   records = [
-    { id: 'payment-delete', date: '2026-10-29', method: 'card', amountCents: 7500, version: 1 },
+    { id: 'payment-read', date: '2026-10-29', method: 'card', amountCents: 7500, version: 1 },
   ];
-  mocks.remove.mockImplementation(async () => {
-    records = [];
-    return { id: 'payment-delete' };
-  });
   await show();
-  const day = screen.getByRole('button', { name: 'jeudi 29 octobre 2026' });
-  await waitFor(() => expect(day).toHaveTextContent('75'));
-  fireEvent.click(await screen.findByRole('button', { name: /Supprimer le paiement/ }));
-  expect(screen.getByRole('dialog')).toHaveTextContent('Exemple Fictif');
-  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
-  await screen.findByText('Aucun paiement enregistré pour ce jour.');
-  expect(mocks.remove).toHaveBeenCalledWith('/payments/payment-delete', {
-    version: 1,
-    confirmed: true,
-  });
-  await waitFor(() => expect(within(day).getAllByText(/^0\s*€$/)).toHaveLength(3));
-  expect(document.querySelector('.quiet-panel')).toHaveTextContent('Total : 0');
+  await screen.findByText('Exemple Fictif');
+  expect(screen.queryByRole('button', { name: /Supprimer le paiement/ })).not.toBeInTheDocument();
+  expect(mocks.remove).not.toHaveBeenCalled();
 });
 
 test('dashboard sans permission de suppression : aucune commande rouge de paiement', async () => {
@@ -556,13 +545,11 @@ test('date future : bouton du dashboard inactif, retour au jour courant autoris�
 test('modale : date limitée à aujourd’hui, validation Bootstrap et enregistrement désactivé dans le futur', async () => {
   await show();
   const dialog = await openPayment();
-  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
+  await patientReady(dialog);
   const date = within(dialog).getByLabelText(/Date du paiement/);
   const save = within(dialog).getByRole('button', { name: 'Enregistrer le paiement' });
   expect(date).toHaveAttribute('max', '2026-10-29');
-  fireEvent.change(within(dialog).getByRole('combobox', { name: 'Patient *' }), {
-    target: { value: patient.id },
-  });
+  await choosePatient(dialog);
   fireEvent.change(within(dialog).getByRole('combobox', { name: 'Tarif *' }), {
     target: { value: 'child' },
   });
@@ -595,11 +582,8 @@ test('tarif obligatoire : liste des consultations, sans saisie libre et bouton d
 test('tarif modifié pendant la saisie : rechargement, choix explicite et nouveau montant', async () => {
   await show();
   const dialog = await openPayment();
-  await within(dialog).findByRole('option', { name: 'Exemple Fictif' });
-  await userEvent.selectOptions(
-    within(dialog).getByRole('combobox', { name: 'Patient *' }),
-    patient.id,
-  );
+  await patientReady(dialog);
+  await choosePatient(dialog);
   await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Tarif *' }), 'adult');
   tariffs = tariffs.map((tariff) =>
     tariff.id === 'adult' ? { ...tariff, amountCents: 6000, version: 2 } : tariff,

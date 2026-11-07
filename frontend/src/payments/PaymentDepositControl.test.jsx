@@ -24,11 +24,12 @@ const show = (props = {}) =>
     </NotificationProvider>,
   );
 test.each(['cash', 'cheque'])(
-  'statut %s, marquage et annulation avec version et notification jaune',
+  'statut %s, marquage vert et annulation jaune avec version',
   async (method) => {
     const onSaved = vi.fn();
     const view = show({ payment: { ...payment, method }, onSaved });
     expect(screen.getByText('À déposer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Déposer' })).toHaveClass('btn-outline-success');
     fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(mocks.patch).toHaveBeenCalledWith('/payments/' + payment.id + '/bank-deposit', {
@@ -37,7 +38,7 @@ test.each(['cash', 'cheque'])(
     });
     expect(
       screen.getByText('Paiement marqué comme déposé en banque.').closest('.toast'),
-    ).toHaveClass('bg-warning-subtle');
+    ).toHaveClass('bg-success-subtle');
     view.rerender(
       <NotificationProvider>
         <PaymentDepositControl
@@ -47,7 +48,10 @@ test.each(['cash', 'cheque'])(
         />
       </NotificationProvider>,
     );
-    expect(screen.getByText('Déposé en banque')).toBeInTheDocument();
+    expect(screen.getByText('Déposé')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Annuler le dépôt' })).toHaveClass(
+      'btn-outline-warning',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Annuler le dépôt' }));
     await waitFor(() =>
       expect(mocks.patch).toHaveBeenLastCalledWith('/payments/' + payment.id + '/bank-deposit', {

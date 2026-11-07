@@ -115,7 +115,7 @@ export const routes = [
     permission: 'payments.read',
     query: paymentQuery,
     action: 'paymentsList',
-    summary: 'Lister les paiements d’un jour ou d’une période avec pagination',
+    summary: 'Lister tous les paiements, ou filtrer par jour ou période, avec pagination',
   },
   {
     method: 'post',

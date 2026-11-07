@@ -37,6 +37,7 @@ export const definitions = {
     date: { type: D.DATEONLY, allowNull: false },
     method: { type: D.STRING(12), allowNull: false },
     amountCents: { type: D.INTEGER.UNSIGNED, allowNull: false },
+    chequeNumber: { type: D.STRING(30), allowNull: true },
     bankDeposited: { type: D.BOOLEAN, allowNull: false, defaultValue: false },
     version: { type: D.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
   },

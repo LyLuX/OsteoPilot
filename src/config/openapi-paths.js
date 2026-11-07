@@ -54,7 +54,7 @@ export function responseSchema(action) {
   if (action === 'paymentDelete') return ref('PaymentDeleted');
   if (action === 'patientPayments') return ref('PatientPayments');
   if (action === 'paymentsSummary') return ref('PaymentSummary');
-  if (action === 'paymentsList') return paginated('Payment');
+  if (action === 'paymentsList') return ref('Payments');
   if (action === 'paymentPatients') return paginated('PaymentPatient');
   if (['paymentsCreate', 'paymentBankDeposit'].includes(action)) return ref('Payment');
   if (['login', 'me', 'refresh'].includes(action)) return session;
@@ -103,7 +103,7 @@ for (const route of routes) {
       schema: { type: 'string', format: 'uuid' },
     });
   const paymentPeriodDescription =
-    'Période inclusive de 366 jours maximum, avec from ≤ to. Pour la liste, fournir soit date seule, soit from et to ensemble.';
+    'Période inclusive de 366 jours maximum, avec from ≤ to. Pour la liste, omettre les dates pour tout l’historique, ou fournir soit date seule, soit from et to ensemble.';
   if (route.query) {
     const schema = jsonSchema(route.query);
     for (const [name, property] of Object.entries(schema.properties))
@@ -192,6 +192,12 @@ for (const route of routes) {
     operationId: route.action,
     summary: route.summary,
     'x-permission': route.permission || null,
+    ...(route.action === 'paymentsCreate'
+      ? {
+          description:
+            'chequeNumber est facultatif : 1 à 30 chiffres, uniquement si method vaut cheque. Les zéros initiaux sont conservés. Aucun numéro dans les audits.',
+        }
+      : {}),
     security: route.public ? [] : [{ session: [] }],
     parameters,
     ...(route.body

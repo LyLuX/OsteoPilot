@@ -2,7 +2,13 @@ import { useRef, useState } from 'react';
 import { api } from '../api/client.js';
 import { ConfirmDialog, useTask } from '../components/shared.jsx';
 import { formatMoney, paymentMethods } from './money.js';
-export default function PaymentDeleteControl({ payment, canDelete, onDeleted }) {
+export default function PaymentDeleteControl({
+  payment,
+  canDelete,
+  onDeleted,
+  disabled = false,
+  onBusyChange,
+}) {
   const [confirm, setConfirm] = useState(false);
   const task = useTask();
   const pending = useRef(false);
@@ -20,7 +26,7 @@ export default function PaymentDeleteControl({ payment, canDelete, onDeleted }) 
           ' de ' +
           formatMoney(payment.amountCents)
         }
-        disabled={task.busy}
+        disabled={task.busy || disabled}
       >
         <svg
           width="18"
@@ -46,8 +52,9 @@ export default function PaymentDeleteControl({ payment, canDelete, onDeleted }) 
             else setConfirm(false);
           }}
           onConfirm={async () => {
-            if (pending.current) return;
+            if (pending.current || disabled) return;
             pending.current = true;
+            onBusyChange?.(true);
             try {
               const result = await task.run(
                 async () => {
@@ -73,6 +80,7 @@ export default function PaymentDeleteControl({ payment, canDelete, onDeleted }) 
               }
             } finally {
               pending.current = false;
+              onBusyChange?.(false);
             }
           }}
         >

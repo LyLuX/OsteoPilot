@@ -9,8 +9,7 @@ import {
   useResource,
 } from '../components/shared.jsx';
 import PaymentModal from '../payments/PaymentModal.jsx';
-import PaymentDeleteControl from '../payments/PaymentDeleteControl.jsx';
-import PaymentDepositControl from '../payments/PaymentDepositControl.jsx';
+import PaymentDepositBadge from '../payments/PaymentDepositBadge.jsx';
 import PaymentMethodIcon from '../payments/PaymentMethodIcon.jsx';
 import { paymentMethods, formatMoney } from '../payments/money.js';
 import {
@@ -375,33 +374,25 @@ function DashboardCalendar({ now, defaultView }) {
                                 <strong>
                                   {payment.patient?.lastName} {payment.patient?.firstName}
                                 </strong>
-                                <span className="muted d-block">
-                                  {
-                                    paymentMethods.find((method) => method.code === payment.method)
-                                      ?.label
-                                  }
-                                  {!singleDay &&
-                                    ' · ' + payment.date.split('-').reverse().join('/')}
-                                </span>
+                                <div className="payment-method-line">
+                                  <span className="muted">
+                                    {
+                                      paymentMethods.find(
+                                        (method) => method.code === payment.method,
+                                      )?.label
+                                    }
+                                    {!singleDay &&
+                                      ' · ' + payment.date.split('-').reverse().join('/')}
+                                  </span>
+                                  {['cash', 'cheque'].includes(payment.method) && (
+                                    <PaymentDepositBadge payment={payment} />
+                                  )}
+                                </div>
                               </div>
                               <div className="payment-row-actions">
                                 <strong>{formatMoney(payment.amountCents)}</strong>
-                                <PaymentDeleteControl
-                                  payment={payment}
-                                  canDelete={can('payments.delete')}
-                                  onDeleted={() => {
-                                    setPage(1);
-                                    payments.reload();
-                                    summary.reload();
-                                  }}
-                                />
                               </div>
                             </div>
-                            <PaymentDepositControl
-                              payment={payment}
-                              canUpdate={can('payments.deposit')}
-                              onSaved={payments.reload}
-                            />
                           </li>
                         ))}
                       </ul>

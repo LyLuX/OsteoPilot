@@ -16,8 +16,18 @@ export const paymentInput = z
     date: civilDate,
     method: z.enum(paymentMethodCodes),
     amountCents: z.number().int().min(1).max(99999999),
+    chequeNumber: z
+      .string()
+      .trim()
+      .min(1)
+      .max(30)
+      .regex(/^[0-9]+$/)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.chequeNumber === undefined || value.method === 'cheque', {
+    path: ['chequeNumber'],
+  });
 const orderedRange = (q) =>
   q.from <= q.to && (Date.parse(q.to) - Date.parse(q.from)) / 86400000 <= 365;
 export const paymentQuery = z
@@ -28,9 +38,13 @@ export const paymentQuery = z
     ...paging,
   })
   .strict()
-  .refine((q) => (q.date ? !q.from && !q.to : Boolean(q.from && q.to && orderedRange(q))), {
-    path: ['date'],
-  });
+  .refine(
+    (q) =>
+      q.date ? !q.from && !q.to : (!q.from && !q.to) || Boolean(q.from && q.to && orderedRange(q)),
+    {
+      path: ['date'],
+    },
+  );
 export const paymentSummaryQuery = z
   .object({ from: civilDate, to: civilDate })
   .strict()
@@ -44,6 +58,7 @@ export const publicPayment = (row) => ({
   date: row.date,
   method: row.method,
   amountCents: row.amountCents,
+  chequeNumber: row.method === 'cheque' ? (row.chequeNumber ?? null) : null,
   createdAt: row.createdAt,
   bankDeposited: depositMethods.includes(row.method) ? (row.bankDeposited ?? false) : null,
   version: row.version ?? 1,

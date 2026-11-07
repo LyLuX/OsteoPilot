@@ -8,6 +8,7 @@ const attributes = [
   'amountCents',
   'createdAt',
   'bankDeposited',
+  'chequeNumber',
   'version',
 ];
 export class PaymentRepository {
@@ -63,7 +64,11 @@ export class PaymentRepository {
   list(query) {
     return this.models.Payments.findAndCountAll({
       attributes,
-      where: { date: query.date ?? { [Op.between]: [query.from, query.to] } },
+      where: query.date
+        ? { date: query.date }
+        : query.from
+          ? { date: { [Op.between]: [query.from, query.to] } }
+          : {},
       include: [
         { model: this.models.Patients, as: 'patient', attributes: ['id', 'firstName', 'lastName'] },
       ],

@@ -12,7 +12,7 @@ export async function up(db) {
         ...baseAttributes(),
         ...Object.fromEntries(
           Object.entries(definitions.Payments).filter(
-            ([name]) => !['bankDeposited', 'version'].includes(name),
+            ([name]) => !['bankDeposited', 'version', 'chequeNumber'].includes(name),
           ),
         ),
       },

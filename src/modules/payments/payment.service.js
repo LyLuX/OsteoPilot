@@ -207,7 +207,12 @@ export class PaymentService {
         ['patientId', 'date', 'method'].map((field) => [field, input[field]]),
       );
       const row = await this.repository.create(
-        { ...payment, amountCents: tariff.amountCents, createdBy: ctx.user.id },
+        {
+          ...payment,
+          amountCents: tariff.amountCents,
+          chequeNumber: input.chequeNumber ?? null,
+          createdBy: ctx.user.id,
+        },
         tx,
       );
       await recordAudit(

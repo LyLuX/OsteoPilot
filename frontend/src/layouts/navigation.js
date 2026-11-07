@@ -28,6 +28,14 @@ export const navigation = [
     ],
   },
   {
+    label: 'Gestion paiements',
+    key: 'payments',
+    icon: '⇄',
+    items: [
+      { label: 'Déposer', path: '/payments/deposit', permission: 'payments.read', icon: '⇄' },
+    ],
+  },
+  {
     label: 'Administration',
     key: 'administration',
     icon: '⚙',

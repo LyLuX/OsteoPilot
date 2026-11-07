@@ -1,4 +1,5 @@
 import { useId, useRef } from 'react';
+import PaymentDepositBadge from './PaymentDepositBadge.jsx';
 import { api } from '../api/client.js';
 import { useTask } from '../components/shared.jsx';
 
@@ -26,25 +27,25 @@ export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
           onSaved();
         },
         deposited ? 'Dépôt en banque annulé.' : 'Paiement marqué comme déposé en banque.',
-        'warning',
+        deposited ? 'warning' : 'success',
       );
     } finally {
       pending.current = false;
     }
   };
   return (
-    <div
+    <span
       className={
         'payment-deposit-control' + (deposited ? ' payment-deposit-control--deposited' : '')
       }
     >
-      <span id={labelId} className="badge payment-deposit-status">
-        {deposited ? 'Déposé en banque' : 'À déposer'}
-      </span>
+      <PaymentDepositBadge payment={payment} id={labelId} />
       {canUpdate && (
         <button
           type="button"
-          className="btn btn-sm payment-deposit-button"
+          className={
+            'btn btn-sm payment-deposit-button btn-outline-' + (deposited ? 'warning' : 'success')
+          }
           aria-describedby={labelId}
           aria-label={
             task.busy ? 'Mise à jour du dépôt' : deposited ? 'Annuler le dépôt' : 'Déposer'
@@ -59,6 +60,6 @@ export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
           {task.busy ? '…' : deposited ? 'Annuler' : 'Déposer'}
         </button>
       )}
-    </div>
+    </span>
   );
 }

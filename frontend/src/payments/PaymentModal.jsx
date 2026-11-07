@@ -1,3 +1,4 @@
+import ScrollableSelect from '../components/ScrollableSelect.jsx';
 import { useEffect, useId, useRef, useState } from 'react';
 import BootstrapForm, { FormControl } from '../components/BootstrapForm.jsx';
 import { Field, ResourceState, useResource, useTask } from '../components/shared.jsx';
@@ -25,6 +26,7 @@ export default function PaymentModal({
     method: acceptedMethods[0] || '',
     tariffId: '',
     amountCents: 0,
+    chequeNumber: '',
   });
   const futureDate = values.date > today;
   const dateError = 'La date du paiement ne peut pas être postérieure à aujourd’hui.';
@@ -74,7 +76,12 @@ export default function PaymentModal({
           try {
             const result = await task.run(async () => {
               try {
-                return await api.post('/payments', values, {
+                const { chequeNumber, ...paymentValues } = values;
+                const payload =
+                  values.method === 'cheque' && chequeNumber.trim()
+                    ? { ...paymentValues, chequeNumber: chequeNumber.trim() }
+                    : paymentValues;
+                return await api.post('/payments', payload, {
                   headers: { 'Idempotency-Key': key.current },
                 });
               } catch (error) {
@@ -102,24 +109,23 @@ export default function PaymentModal({
           <ResourceState resource={patients} />
           <div className="field">
             <label htmlFor={titleId + '-patient'}>Patient *</label>
-            <FormControl
-              as="select"
+            <ScrollableSelect
               id={titleId + '-patient'}
               name="patientId"
               required
               value={values.patientId}
-              onChange={(event) => change('patientId', event.target.value)}
-              disabled={patients.loading || Boolean(patients.error)}
-            >
-              <option value="">Choisir un patient actif</option>
-              {!patients.loading &&
-                !patients.error &&
-                patients.data?.items.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.lastName} {patient.firstName}
-                  </option>
-                ))}
-            </FormControl>
+              placeholder="Choisir un patient actif"
+              onChange={(value) => change('patientId', value)}
+              disabled={task.busy || patients.loading || Boolean(patients.error)}
+              options={
+                !patients.loading && !patients.error
+                  ? (patients.data?.items ?? []).map((patient) => ({
+                      value: patient.id,
+                      label: patient.lastName + ' ' + patient.firstName,
+                    }))
+                  : []
+              }
+            />
           </div>
           {!patients.loading && !patients.error && patients.data?.items.length === 0 && (
             <p className="muted">Aucun patient actif trouvé.</p>
@@ -178,7 +184,10 @@ export default function PaymentModal({
               name="method"
               required
               value={values.method}
-              onChange={(event) => change('method', event.target.value)}
+              onChange={(event) => {
+                change('method', event.target.value);
+                change('chequeNumber', '');
+              }}
             >
               <option value="">Choisir un moyen de paiement</option>
               {paymentMethods
@@ -190,6 +199,18 @@ export default function PaymentModal({
                 ))}
             </FormControl>
           </div>
+          {values.method === 'cheque' && (
+            <Field
+              label="Numéro de chèque"
+              name="chequeNumber"
+              value={values.chequeNumber}
+              onChange={change}
+              inputMode="numeric"
+              pattern="[0-9]{1,30}"
+              maxLength={30}
+              autoComplete="off"
+            />
+          )}
           {acceptedMethods.length === 0 && (
             <p className="alert alert-warning">
               Aucun moyen de paiement accepté. Configurez-les dans le paramétrage.

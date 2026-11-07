@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import AppLayout from './layouts/AppLayout.jsx';
 import DashboardPage from './dashboard/DashboardPage.jsx';
+import PaymentDepositsPage from './payments/PaymentDepositsPage.jsx';
 import PatientsPage from './patients/PatientsPage.jsx';
 import PatientFormPage from './patients/PatientFormPage.jsx';
 import PatientDetailPage from './patients/PatientDetailPage.jsx';
@@ -48,6 +49,10 @@ export default function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={protect('dashboard.read', <DashboardPage />)} />
+        <Route
+          path="/payments/deposit"
+          element={protect('payments.read', <PaymentDepositsPage />)}
+        />
         <Route path="/patients" element={protect('patients.read', <PatientsPage />)} />
         <Route path="/patients/new" element={protect('patients.create', <PatientFormPage />)} />
         <Route

@@ -48,8 +48,11 @@ test('liste et synthèse : année bissextile et filtres exclusifs validés', () 
   expect(parse(paymentSummaryQuery, range)).toEqual(range);
   expect(parse(paymentQuery, range)).toMatchObject({ ...range, page: 1, limit: 25 });
   expect(parse(paymentQuery, { date: input.date })).toMatchObject({ date: input.date });
+  expect(parse(paymentQuery, {})).toEqual({ page: 1, limit: 25 });
+  expect(parse(paymentQuery, { page: '2', limit: '5' })).toEqual({ page: 2, limit: 5 });
   for (const query of [
-    {},
+    { limit: 101 },
+    { sort: 'amountCents' },
     { from: range.from },
     { to: range.to },
     { date: input.date, ...range },
@@ -103,4 +106,19 @@ test('suppression : confirmation explicite et version entière, historique patie
   expect(parse(patientPaymentsQuery, { page: '2', limit: '5' })).toEqual({ page: 2, limit: 5 });
   for (const query of [{ page: 0 }, { limit: 101 }, { patientId: input.patientId }])
     expect(() => parse(patientPaymentsQuery, query)).toThrow();
+});
+
+test('numéro de chèque : facultatif, textuel, borné et réservé aux chèques', () => {
+  const cheque = { ...input, method: 'cheque', chequeNumber: '0012345' };
+  expect(parse(paymentInput, cheque)).toEqual(cheque);
+  expect(parse(paymentInput, { ...input, method: 'cheque' })).not.toHaveProperty('chequeNumber');
+  for (const chequeNumber of ['', '12a34', '12 34', '-12', '1'.repeat(31), 12345, null]) {
+    expect(() => parse(paymentInput, { ...cheque, chequeNumber })).toThrow();
+  }
+  for (const method of ['cash', 'card', 'transfer']) {
+    expect(() => parse(paymentInput, { ...cheque, method })).toThrow();
+    expect(publicPayment({ ...cheque, method }).chequeNumber).toBeNull();
+  }
+  expect(publicPayment(cheque).chequeNumber).toBe('0012345');
+  expect(publicPayment({ ...input, method: 'cheque' }).chequeNumber).toBeNull();
 });

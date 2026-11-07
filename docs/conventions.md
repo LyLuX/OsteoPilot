@@ -105,6 +105,13 @@ s’appliquent immédiatement. Chaque changement appliqué revient à la page 1.
 
 ## Paiements
 
+La saisie propose chequeNumber uniquement pour un chèque : texte facultatif de
+1 à 30 chiffres, avec conservation des zéros initiaux. Le serveur refuse ce champ
+pour un autre moyen. Le numéro est persisté dans la transaction de création et
+projeté explicitement ; il ne figure jamais dans les audits ou logs. La migration
+008 ajoute une colonne nullable sans modifier les paiements existants. L’absence
+de numéro reste compatible avec les anciennes créations idempotentes.
+
 Stocker et transporter des centimes entiers, convertir la saisie décimale sans
 multiplication de flottants et conserver une date civile YYYY-MM-DD. Le fuseau
 Europe/Paris sert à déterminer le jour courant ; les dates de paiement ne se
@@ -140,6 +147,23 @@ moyens désactivés restent inclus dans le total et regroupés sous « Autres »
 les cases ; la liste des paiements conserve leur libellé historique.
 
 ## Dépôt des paiements
+
+Le menu Gestion paiements > Déposer liste tous les paiements via GET /payments
+avec page et limit, sans filtre de date. La lecture exige payments.read. Le tableau
+réutilise la pagination commune et affiche uniquement les statuts dans la colonne
+Dépôt, sans boutons : À déposer ou Déposé pour les espèces et chèques, Sur le compte
+pour les virements et Sans objet pour la carte. Les commandes de dépôt et d’annulation
+des autres écrans restent soumises à payments.deposit. Le panneau du calendrier
+présente le moyen et le badge de statut dans deux spans enfants d’une même div,
+avec le badge aligné à droite.
+La suppression avec confirmation reste disponible dans la fiche patient et dans
+la page Déposer, sous payments.delete ; elle est retirée du calendrier.
+La sélection de dépôt exige payments.deposit et concerne uniquement les espèces
+ou chèques non déposés. Les cases globales sont exclusives et couvrent toutes les
+pages ; les cases individuelles ajustent ce choix et l’état partiel est exposé.
+Changer de type remplace la sélection précédente. Carte, virement et paiements
+déjà déposés ne sont pas sélectionnables. La sélection seule ne modifie aucun dépôt.
+Une suppression recharge la première page et réinitialise la sélection.
 
 Le suivi du dépôt en banque concerne uniquement les espèces et les chèques.
 Les nouveaux paiements et l’historique démarrent « À déposer » ; ce statut est
@@ -237,3 +261,11 @@ charge tous les patients actifs par lots de 100 via l’API paginée existante,
 puis propose la liste complète. Une erreur sur un lot bloque la sélection et
 l’enregistrement jusqu’à une nouvelle tentative ; aucun résultat partiel n’est
 présenté comme complet. Fermer la modale arrête le parcours des pages suivantes.
+
+Le menu des patients utilise ScrollableSelect : hauteur maximale définie par
+--select-menu-max-height (16 rem), défilement vertical et adaptation à l’espace
+disponible dans la modale. Le composant conserve la validation Bootstrap, les
+labels et le champ requis, avec flèches, Home/End, saisie de lettres, Entrée,
+Tab et Échap. Le menu se ferme au clic extérieur et conserve le focus sur le
+champ après sélection. Le sélecteur natif masqué sert uniquement à la validation
+du formulaire ; la liste visible expose les rôles combobox, listbox et option.

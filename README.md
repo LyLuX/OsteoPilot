@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.8.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.9.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -291,8 +291,8 @@ affecte au rôle ADMIN ; les rôles personnalisés nécessitent une attribution
 explicite. Aucun droit existant n’accorde implicitement l’accès aux paiements.
 La migration ajoute la table Payments sans modifier la patientèle.
 
-API : GET /api/v1/payments/summary (from/to, 62 jours maximum), GET
-/api/v1/payments (date/page/limit), GET /api/v1/payments/patients (search/page/limit)
+API : GET /api/v1/payments/summary (from/to, 366 jours maximum), GET
+/api/v1/payments (page/limit, date ou from/to facultatifs), GET /api/v1/payments/patients (search/page/limit)
 et POST /api/v1/payments. Le POST exige Idempotency-Key, valide le moyen accepté
 et le patient dans la transaction, puis committe paiement, audit minimal et clé
 ensemble. Rejouer la même saisie avec la même clé ne crée aucun doublon.
@@ -301,7 +301,7 @@ La fiche patient propose les onglets Informations et Paiements. Le récapitulati
 requiert patients.read et payments.read et couvre toutes les dates, avec total,
 répartition par moyen et pagination. La suppression d’un paiement erroné est une
 action distincte payments.delete, confirmée et auditée avec contrôle de version ;
-elle est disponible sur le dashboard et la fiche patient selon les droits.
+elle est disponible dans Gestion paiements > Déposer et dans la fiche patient selon les droits.
 La migration 202611030006-payment-delete-permission.js ajoute ce droit à ADMIN,
 sans l’attribuer aux autres rôles et sans modifier les paiements existants.
 
@@ -312,3 +312,17 @@ sans toucher aux autres paramètres. La modale propose uniquement ces tarifs ;
 le serveur refuse un tarif inconnu ou un prix devenu obsolète. Les montants déjà
 enregistrés sont conservés. La migration 202611030007-payment-tariffs.js prépare
 le catalogue ; l’API de création d’un paiement exige tariffId et amountCents.
+
+La saisie d’un chèque propose un numéro facultatif de 1 à 30 chiffres, conservé
+comme texte avec ses zéros initiaux. Il est refusé pour les autres moyens et
+n’apparaît jamais dans les audits. La migration additive
+202611070008-payment-cheque-number.js ajoute la colonne nullable sans modifier
+les paiements existants. Le down de développement supprime les numéros saisis.
+
+Gestion paiements > Déposer présente tous les paiements dans un tableau paginé.
+La colonne Dépôt contient uniquement les statuts, avec Sur le compte pour les
+virements. La première colonne et les cases Paiements en espèces / Paiements par
+chèque permettent une sélection exclusive par type sur toutes les pages, avec
+ajustements individuels, sous payments.deposit. La sélection seule ne change pas
+les statuts. Les paiements déjà déposés, cartes et virements ne sont pas
+sélectionnables. La suppression reste soumise à payments.delete et confirmation.
