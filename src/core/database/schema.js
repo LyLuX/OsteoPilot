@@ -41,6 +41,15 @@ export const definitions = {
     bankDeposited: { type: D.BOOLEAN, allowNull: false, defaultValue: false },
     version: { type: D.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
   },
+  DepositSlips: {
+    createdBy: ref('Users'),
+    method: { type: D.STRING(12), allowNull: false },
+    cabinetName: { type: D.STRING(100), allowNull: false },
+    paymentCount: { type: D.INTEGER.UNSIGNED, allowNull: false },
+    totalCents: { type: D.BIGINT.UNSIGNED, allowNull: false },
+    items: { type: D.JSON, allowNull: false },
+    reconstructed: { type: D.BOOLEAN, allowNull: false, defaultValue: false },
+  },
   Settings: {
     name: { type: D.STRING(100), allowNull: false },
     address: { type: D.STRING(300), allowNull: false, defaultValue: '' },
@@ -63,6 +72,7 @@ export const indexes = {
   UserRoles: [{ unique: true, fields: ['userId', 'roleId'] }],
   RolePermissions: [{ unique: true, fields: ['roleId', 'permissionId'] }],
   IdempotencyKeys: [{ unique: true, fields: ['userId', 'keyHash'] }],
+  DepositSlips: [{ fields: ['createdAt', 'id'] }],
   Payments: [{ fields: ['date', 'method'] }, { fields: ['patientId'] }],
   Patients: [{ fields: ['lastName', 'firstName'] }, { fields: ['archived'] }],
   Sessions: [{ fields: ['expiresAt'] }],

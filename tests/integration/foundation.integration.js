@@ -93,6 +93,7 @@ test('migration des règlements depuis le schéma initial : informations du cabi
           '202611030006-payment-delete-permission.js',
           '202611030007-payment-tariffs.js',
           '202611070008-payment-cheque-number.js',
+          '202611070009-deposit-slips.js',
         ],
       },
       { transaction },
@@ -837,6 +838,58 @@ test('droits paiements : accès HTTP et service refusés, recherche patient mini
   ]);
 });
 
+test('paiements : disponibilité globale des dépôts indépendante des pages et dates, actualisée après mutation', async () => {
+  const expected = async (bankDeposited) => ({
+    cash: await db.models.Payments.count({ where: { method: 'cash', bankDeposited } }),
+    cheque: await db.models.Payments.count({ where: { method: 'cheque', bankDeposited } }),
+  });
+  const before = await expected(false);
+  const depositedBefore = await expected(true);
+  const patient = await paymentPatient();
+  await acceptMethod('cheque');
+  const row = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id, { method: 'cheque' }),
+    randomUUID(),
+  );
+  const read = () =>
+    request(app)
+      .get('/api/v1/payments')
+      .set('Cookie', 'osteopilot.access=' + session.token)
+      .query({ date: '1000-01-01', page: 999, limit: 1 });
+  const pending = await read();
+  expect(pending.status).toBe(200);
+  expect(pending.body.data.items).toEqual([]);
+  expect(pending.body.data.pendingDeposits).toEqual({ ...before, cheque: before.cheque + 1 });
+  expect(pending.body.data.pendingDeposits).toEqual(await expected(false));
+  expect(pending.body.data.depositedPayments).toEqual(depositedBefore);
+  await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+    bankDeposited: true,
+    version: 1,
+  });
+  const deposited = await read();
+  expect(deposited.body.data.pendingDeposits).toEqual(before);
+  expect(deposited.body.data.depositedPayments).toEqual({
+    ...depositedBefore,
+    cheque: depositedBefore.cheque + 1,
+  });
+  expect(deposited.body.data.depositedPayments).toEqual(await expected(true));
+  await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+    bankDeposited: false,
+    version: 2,
+  });
+  expect((await read()).body.data.pendingDeposits).toEqual({
+    ...before,
+    cheque: before.cheque + 1,
+  });
+  expect((await read()).body.data.depositedPayments).toEqual(depositedBefore);
+  await payments.remove(session.token, session.csrfToken, row.id, { version: 3, confirmed: true });
+  const removed = await read();
+  expect(removed.body.data.pendingDeposits).toEqual(before);
+  expect(removed.body.data.depositedPayments).toEqual(depositedBefore);
+});
+
 test('paiements : périodes inclusives, tri civil, pagination et totaux annuels historiques', async () => {
   const previousTotal = (await payments.list({})).pagination.total;
   await acceptMethod('cash');
@@ -1083,6 +1136,7 @@ test('migration du dépôt depuis des paiements existants : montants préservés
           '202611030006-payment-delete-permission.js',
           '202611030007-payment-tariffs.js',
           '202611070008-payment-cheque-number.js',
+          '202611070009-deposit-slips.js',
         ],
       },
       { transaction },
@@ -1245,6 +1299,7 @@ test('migration de la vue initiale : mois par défaut et préférences préserv�
           '202611030006-payment-delete-permission.js',
           '202611030007-payment-tariffs.js',
           '202611070008-payment-cheque-number.js',
+          '202611070009-deposit-slips.js',
         ],
       },
       { transaction },
@@ -1748,7 +1803,7 @@ test('bordereau : aperçu sans mutation, sélection globale, dépôt atomique id
   for (const row of rows)
     expect((await db.models.Payments.findByPk(row.id)).bankDeposited).toBe(true);
   const after = await snapshot();
-  expect(after.AuditLogs).toBe(before.AuditLogs + 2);
+  expect(after.AuditLogs).toBe(before.AuditLogs + 3);
   expect((await send()).body.data).toEqual(response.body.data);
   expect(await snapshot()).toEqual(after);
   await expect(
@@ -1837,7 +1892,7 @@ test('bordereau : conflit et panne audit annulent tout le lot, concurrence sans 
   expect(results.find((result) => result.status === 'rejected').reason).toMatchObject({
     status: 409,
   });
-  expect((await snapshot()).AuditLogs).toBe(before.AuditLogs + 2);
+  expect((await snapshot()).AuditLogs).toBe(before.AuditLogs + 3);
 });
 
 test('bordereau : permissions, origine, CSRF, sélection indisponible et bornes', async () => {
@@ -2079,13 +2134,113 @@ test('annulation globale : droits backend, CSRF, confirmation et limite sans tro
   spy.mockRestore();
 });
 
+test('historique des dépôts : archive atomique immuable, lecture seule et contrôles serveur', async () => {
+  await acceptMethod('cheque');
+  const patient = await paymentPatient();
+  const row = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id, { method: 'cheque', chequeNumber: '0012345', amountCents: 101 }),
+    randomUUID(),
+  );
+  const input = { method: 'cheque', items: [{ id: row.id, version: row.version }] };
+  const before = await db.models.DepositSlips.count();
+  const key = randomUUID();
+  const result = await payments.depositBatch(session.token, session.csrfToken, input, key);
+  expect(await db.models.DepositSlips.count()).toBe(before + 1);
+  expect((await payments.depositBatch(session.token, session.csrfToken, input, key)).slip).toEqual(
+    result.slip,
+  );
+  const archived = result.slip;
+  expect(archived.items[0].chequeNumber).toBe('0012345');
+  expect(archived.reconstructed).toBe(false);
+  const reader = await restrictedUser(['payments.read']);
+  const denied = await restrictedUser(['patients.read']);
+  const get = (path, query = {}, token = reader.session.token) =>
+    request(app)
+      .get(path)
+      .query(query)
+      .set('Cookie', 'osteopilot.access=' + token);
+  const list = await get('/api/v1/payments/deposits/history', { limit: 1 });
+  expect(list.status).toBe(200);
+  expect(list.body.data.items).toHaveLength(1);
+  expect(list.body.data.items[0]).not.toHaveProperty('items');
+  expect(list.body.data.pagination.total).toBe(before + 1);
+  expect((await get('/api/v1/payments/deposits/history', { limit: 101 })).status).toBe(422);
+  expect((await get('/api/v1/payments/deposits/history', { sort: 'patient' })).status).toBe(422);
+  expect((await get('/api/v1/payments/deposits/history/' + randomUUID())).status).toBe(404);
+  expect((await get('/api/v1/payments/deposits/history/invalide')).status).toBe(422);
+  expect((await get('/api/v1/payments/deposits/history', {}, denied.session.token)).status).toBe(
+    403,
+  );
+  expect(
+    (await get('/api/v1/payments/deposits/history/' + archived.id, {}, denied.session.token))
+      .status,
+  ).toBe(403);
+  await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+    bankDeposited: false,
+    version: 2,
+  });
+  await payments.remove(session.token, session.csrfToken, row.id, { version: 3, confirmed: true });
+  await patients.update(session.token, session.csrfToken, patient.id, {
+    lastName: patient.lastName,
+    email: '',
+    phone: '',
+    address: '',
+    firstName: 'Modifié',
+    version: patient.version,
+  });
+  const state = await snapshot();
+  const detail = await get('/api/v1/payments/deposits/history/' + archived.id);
+  expect(detail.status).toBe(200);
+  expect(detail.body.data).toEqual(archived);
+  expect(await payments.depositSlip(reader.session.token, archived.id)).toEqual(archived);
+  expect(await snapshot()).toEqual(state);
+  const audit = await db.models.AuditLogs.findOne({
+    where: { action: 'payments.deposit-slip.create', entityId: archived.id },
+    raw: true,
+  });
+  expect(audit.count).toBe(1);
+  expect(JSON.stringify(audit)).not.toMatch(/0012345|chequeNumber|firstName|cabinetName/);
+});
+
+test('archivage : panne après création du document annule dépôts, archive et idempotence', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const row = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id),
+    randomUUID(),
+  );
+  const before = await snapshot();
+  const count = await db.models.DepositSlips.count();
+  const create = db.models.AuditLogs.create.bind(db.models.AuditLogs);
+  jest.spyOn(db.models.AuditLogs, 'create').mockImplementation((values, options) => {
+    if (values.action === 'payments.deposit-slip.create') throw new Error('Panne audit archive');
+    return create(values, options);
+  });
+  await expect(
+    payments.depositBatch(
+      session.token,
+      session.csrfToken,
+      { method: 'cash', items: [{ id: row.id, version: 1 }] },
+      randomUUID(),
+    ),
+  ).rejects.toThrow('Panne audit archive');
+  expect(await snapshot()).toEqual(before);
+  expect(await db.models.DepositSlips.count()).toBe(count);
+  expect((await db.models.Payments.findByPk(row.id)).bankDeposited).toBe(false);
+});
+
 test('migration 008 : colonne nullable, paiements préservés et reprise du DDL sans écrasement', async () => {
   const before = await db.models.Payments.findAll({
     attributes: ['id', 'amountCents', 'date', 'method'],
     order: [['id', 'ASC']],
     raw: true,
   });
-  await undoMigration(db, { confirmDatabase: safeName });
+  await undoMigration(db, { confirmDatabase: safeName }); // 009
+  await undoMigration(db, { confirmDatabase: safeName }); // 008
   const qi = db.sequelize.getQueryInterface();
   expect((await qi.describeTable('Payments')).chequeNumber).toBeUndefined();
   await migrate(db);
@@ -2106,7 +2261,7 @@ test('migration 008 : colonne nullable, paiements préservés et reprise du DDL 
   await db.sequelize.transaction((transaction) =>
     qi.bulkDelete(
       'SequelizeMeta',
-      { name: '202611070008-payment-cheque-number.js' },
+      { name: ['202611070008-payment-cheque-number.js', '202611070009-deposit-slips.js'] },
       { transaction },
     ),
   );
@@ -2172,6 +2327,7 @@ test('migration 007 : tarifs initiaux, reprise sans écrasement, down/up sans mo
     order: [['id', 'ASC']],
     raw: true,
   });
+  await undoMigration(db, { confirmDatabase: safeName }); // 009
   await undoMigration(db, { confirmDatabase: safeName }); // 008
   await undoMigration(db, { confirmDatabase: safeName }); // 007
   expect(
@@ -2194,13 +2350,17 @@ test('migration 007 : tarifs initiaux, reprise sans écrasement, down/up sans mo
     version: 1,
   });
   await db.sequelize.transaction((transaction) =>
-    db.sequelize
-      .getQueryInterface()
-      .bulkDelete(
-        'SequelizeMeta',
-        { name: ['202611030007-payment-tariffs.js', '202611070008-payment-cheque-number.js'] },
-        { transaction },
-      ),
+    db.sequelize.getQueryInterface().bulkDelete(
+      'SequelizeMeta',
+      {
+        name: [
+          '202611030007-payment-tariffs.js',
+          '202611070008-payment-cheque-number.js',
+          '202611070009-deposit-slips.js',
+        ],
+      },
+      { transaction },
+    ),
   );
   await migrate(db);
   expect((await administration.tariffs()).tariffs[0].amountCents).toBe(4600);
@@ -2212,6 +2372,7 @@ test('migration 007 : tarifs initiaux, reprise sans écrasement, down/up sans mo
       raw: true,
     }),
   ).toEqual(values);
+  await undoMigration(db, { confirmDatabase: safeName }); // 009
   await undoMigration(db, { confirmDatabase: safeName }); // 008
   await undoMigration(db, { confirmDatabase: safeName }); // 007
   const qi = db.sequelize.getQueryInterface();
@@ -2223,6 +2384,7 @@ test('migration 007 : tarifs initiaux, reprise sans écrasement, down/up sans mo
 });
 
 test('migration 006 : droit de suppression ADMIN, down/up et transaction sans attribution partielle', async () => {
+  await undoMigration(db, { confirmDatabase: safeName }); // 009
   await undoMigration(db, { confirmDatabase: safeName }); // 008
   await undoMigration(db, { confirmDatabase: safeName }); // 007
   const before = await snapshot();
@@ -2242,6 +2404,7 @@ test('migration 006 : droit de suppression ADMIN, down/up et transaction sans at
 });
 
 test('down : verrou partagé, historique inconnu et échec DDL sans retrait de l’historique', async () => {
+  await undoMigration(db, { confirmDatabase: safeName }); // 009
   await undoMigration(db, { confirmDatabase: safeName }); // 008
   await undoMigration(db, { confirmDatabase: safeName }); // 007
   await undoMigration(db, { confirmDatabase: safeName }); // 006 : permission sans DDL
@@ -2291,7 +2454,77 @@ test('down : verrou partagé, historique inconnu et échec DDL sans retrait de l
   await migrate(db);
 });
 
-test('down/up des huit migrations : colonnes, données conservées, permissions et reconstruction complète', async () => {
+test('migration 009 : récupération explicite des anciens lots complets, reprise sans doublon et rollback', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const tariff = (await administration.tariffs()).tariffs[0];
+  const payment = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id, { tariffId: tariff.id, amountCents: tariff.amountCents }),
+    randomUUID(),
+  );
+  const legacyId = randomUUID();
+  const missingId = randomUUID();
+  await db.sequelize.transaction(async (transaction) => {
+    for (const [id, ids, totalCents] of [
+      [legacyId, [payment.id], payment.amountCents],
+      [missingId, [randomUUID()], 123],
+    ])
+      await db.models.IdempotencyKeys.create(
+        {
+          id,
+          userId: admin.id,
+          keyHash: id.replaceAll('-', '').padEnd(64, 'a'),
+          requestHash: id.replaceAll('-', '').padEnd(64, 'b'),
+          result: { ids, totalCents },
+        },
+        { transaction },
+      );
+  });
+  const before = await db.models.Payments.findAll({
+    attributes: ['id', 'method', 'amountCents', 'bankDeposited', 'version'],
+    order: [['id', 'ASC']],
+    raw: true,
+  });
+  await undoMigration(db, { confirmDatabase: safeName }); // 009 only
+  const spy = jest
+    .spyOn(db.models.AuditLogs, 'create')
+    .mockRejectedValueOnce(new Error('Panne audit récupération'));
+  await expect(migrate(db)).rejects.toThrow('Panne audit récupération');
+  spy.mockRestore();
+  expect(await db.models.DepositSlips.count()).toBe(0);
+  expect((await inspectDatabase(db)).history).toHaveLength(8);
+  await migrate(db);
+  await checkSchema(db);
+  const recovered = await payments.depositSlip(session.token, legacyId);
+  expect(recovered.reconstructed).toBe(true);
+  expect(recovered.items[0].id).toBe(payment.id);
+  expect(recovered.totalCents).toBe(payment.amountCents);
+  await expect(payments.depositSlip(session.token, missingId)).rejects.toMatchObject({
+    status: 404,
+  });
+  const count = await db.models.DepositSlips.count();
+  const audits = await db.models.AuditLogs.count();
+  const qi = db.sequelize.getQueryInterface();
+  await db.sequelize.transaction((transaction) =>
+    qi.bulkDelete('SequelizeMeta', { name: '202611070009-deposit-slips.js' }, { transaction }),
+  );
+  await migrate(db);
+  await migrate(db);
+  expect(await db.models.DepositSlips.count()).toBe(count);
+  expect(await db.models.AuditLogs.count()).toBe(audits);
+  expect(await payments.depositSlip(session.token, legacyId)).toEqual(recovered);
+  expect(
+    await db.models.Payments.findAll({
+      attributes: ['id', 'method', 'amountCents', 'bankDeposited', 'version'],
+      order: [['id', 'ASC']],
+      raw: true,
+    }),
+  ).toEqual(before);
+});
+
+test('down/up des neuf migrations : colonnes, données conservées, permissions et reconstruction complète', async () => {
   const qi = db.sequelize.getQueryInterface();
   const undo = () => undoMigration(db, { confirmDatabase: safeName });
   const original = await inspectDatabase(db);
@@ -2299,6 +2532,7 @@ test('down/up des huit migrations : colonnes, données conservées, permissions 
   const patientsBefore = await db.models.Patients.count();
   const paymentsBefore = await db.models.Payments.count();
   expect(paymentsBefore).toBeGreaterThan(0);
+  await undo(); // 009
   await undo(); // 008
   await undo(); // 007
   await undo(); // 006
@@ -2310,6 +2544,7 @@ test('down/up des huit migrations : colonnes, données conservées, permissions 
     ...settingsBefore,
     defaultCalendarView: 'month',
   });
+  await undo(); // 009
   await undo(); // 008
   await undo(); // 007
   await undo(); // 006

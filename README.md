@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.10.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.11.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -341,3 +341,13 @@ sur toutes les pages. Le bouton reste désactivé tant qu’aucun dépôt corres
 n’existe ou que leur lecture est en cours ou en erreur. La mutation exige les
 droits de dépôt et de lecture, une confirmation, les versions exactes et une clé
 idempotente ; les audits et annulations sont atomiques, sans modifier les montants.
+
+L’historique des dépôts est accessible à côté de Déposer et Annuler les dépôts.
+Il affiche cinq bordereaux par page par défaut et permet de les réimprimer sans
+modifier les paiements. Les documents nouveaux conservent le nom du cabinet,
+les noms des patients, les dates, numéros de chèques et montants du dépôt.
+La migration 009 archive les anciens lots complets récupérables à partir des
+réponses mémorisées ; ils portent la mention Reconstitué, car leurs informations
+d’identité d’origine n’étaient pas conservées. Les lots incomplets ne sont pas
+recréés. Les archives restent disponibles après annulation ou suppression d’un
+paiement. Appliquer db:migrate après diagnostic et vérifier db:schema:check.

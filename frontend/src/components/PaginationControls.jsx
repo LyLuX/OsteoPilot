@@ -34,7 +34,7 @@ export default function PaginationControls({
 
     return (
       <li
-        className={`page-item ${isCurrent ? 'active' : disabled ? 'disabled' : ''}`.trim()}
+        className={`page-item ${isCurrent ? 'active' : disabled ? 'disabled' : ''} ${!isCurrent ? (page === 1 || page === pagination.totalPages ? 'pagination-boundary' : 'pagination-adjacent') : ''}`.trim()}
         key={page}
       >
         {isCurrent ? (
@@ -77,15 +77,30 @@ export default function PaginationControls({
               type="button"
               disabled={disabled || pagination.page <= 1}
               onClick={() => onPageChange(pagination.page - 1)}
+              aria-label="Précédent"
+              title="Page précédente"
             >
-              Précédent
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="m15 18-6-6 6-6" />
+              </svg>
             </button>
           </li>
           {pages.map((page) =>
             typeof page === 'number' ? (
               pageButton(page)
             ) : (
-              <li aria-hidden="true" className="page-item disabled" key={page}>
+              <li aria-hidden="true" className="page-item disabled pagination-ellipsis" key={page}>
                 <span className="page-link pagination-gap">…</span>
               </li>
             ),
@@ -98,8 +113,23 @@ export default function PaginationControls({
               type="button"
               disabled={disabled || pagination.page >= pagination.totalPages}
               onClick={() => onPageChange(pagination.page + 1)}
+              aria-label="Suivant"
+              title="Page suivante"
             >
-              Suivant
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="m9 6 6 6-6 6" />
+              </svg>
             </button>
           </li>
         </ul>

@@ -1,3 +1,4 @@
+import { slipItems, slipSummary, publicSlip } from './deposit-slip.js';
 import { todayInParis } from '../../core/civil-date.js';
 import { Transaction } from 'sequelize';
 import { AppError, assert } from '../../core/errors.js';
@@ -10,6 +11,7 @@ import { IdempotencyRepository } from '../../core/database/idempotency.repositor
 import { PaymentRepository } from './payment.repository.js';
 import {
   paymentInput,
+  depositHistoryQuery,
   paymentDepositCancelQuery,
   paymentDepositCancelInput,
   paymentDepositSelection,
@@ -31,6 +33,24 @@ export class PaymentService {
     this.repository = new PaymentRepository(db);
     this.settings = new SettingsRepository(db);
     this.idempotency = new IdempotencyRepository(db);
+  }
+  async depositHistory(token, query) {
+    query = parse(depositHistoryQuery, query);
+    return this.db.sequelize.transaction(async (tx) => {
+      const context = await this.auth.authenticate(token, tx);
+      this.auth.permit(context, 'payments.read');
+      return pageResult(await this.repository.slips(query, tx), query, slipSummary);
+    });
+  }
+  async depositSlip(token, id) {
+    id = parse(uuid, id);
+    return this.db.sequelize.transaction(async (tx) => {
+      const context = await this.auth.authenticate(token, tx);
+      this.auth.permit(context, 'payments.read');
+      const row = await this.repository.slip(id, tx);
+      assert(row, 'Bordereau introuvable.', 404);
+      return publicSlip(row);
+    });
   }
   async cancellableDeposits(token, query) {
     const { method } = parse(paymentDepositCancelQuery, query);
@@ -201,14 +221,63 @@ export class PaymentService {
           tx,
         );
       }
-      const result = { ids: rows.map((row) => row.id), totalCents };
+      const cabinet = await this.settings.printIdentity(tx);
+      assert(cabinet?.name?.trim(), 'Renseignez le nom du cabinet avant d’imprimer.', 422);
+      const items = slipItems(
+        await this.repository.slipPayments(
+          input.items.map(({ id }) => id),
+          tx,
+        ),
+        input.method,
+      );
+      const archive = await this.repository.createSlip(
+        {
+          createdBy: ctx.user.id,
+          method: input.method,
+          cabinetName: cabinet.name,
+          paymentCount: items.length,
+          totalCents,
+          items,
+          reconstructed: false,
+        },
+        tx,
+      );
+      await recordAudit(
+        this.db,
+        {
+          actorId: ctx.user.id,
+          action: 'payments.deposit-slip.create',
+          entity: 'deposit-slip',
+          entityId: archive.id,
+          count: items.length,
+        },
+        tx,
+      );
+      const result = {
+        ids: rows.map((row) => row.id),
+        totalCents,
+        slip: publicSlip(await this.repository.slip(archive.id, tx)),
+      };
       await this.idempotency.complete(memo, result, tx);
       return result;
     });
   }
   async list(query) {
     query = parse(paymentQuery, query);
-    return pageResult(await this.repository.list(query), query, publicPayment);
+    return this.db.sequelize.transaction(
+      { isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ },
+      async (tx) => {
+        const rows = await this.repository.list(query, tx);
+        const counts = await this.repository.depositCounts(tx);
+        const pendingDeposits = { cash: 0, cheque: 0 };
+        const depositedPayments = { cash: 0, cheque: 0 };
+        for (const row of counts) {
+          const target = row.bankDeposited ? depositedPayments : pendingDeposits;
+          target[row.method] = Number(row.count);
+        }
+        return { ...pageResult(rows, query, publicPayment), pendingDeposits, depositedPayments };
+      },
+    );
   }
   async remove(token, csrf, id, values) {
     id = parse(uuid, id);

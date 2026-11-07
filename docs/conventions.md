@@ -21,9 +21,22 @@ créations/imports répétables. Les DDL restent une exception MySQL documentée
 
 Français cohérent, composants shared, erreurs via errorMessage, variables du thème.
 Chargement/vide/erreur, confirmations, labels et droits cohérents.
+Conserver un fond de page distinct des panneaux blancs et un fond secondaire
+pour les en-têtes. Texte normal et secondaire : contraste minimal de 4,5:1
+sur leurs surfaces ; contours des champs actifs et focus : 3:1 minimum.
+Les variables Bootstrap de texte, liens et notifications reprennent le thème.
+Réserver --border aux séparateurs et --control-border aux contours des champs.
+Les états désactivés restent lisibles, avec fond secondaire et texte atténué,
+sans opacité globale sur les boutons. Vérifier aussi survol, sélection et focus.
 Dates de filtres d’historique en UTC ; affichage Europe/Paris.
 Calendrier des paiements sur sept colonnes, aucune largeur minimale causant
 un débordement à 320 px. Hauteur tactile des jours de 52 px et largeur disponible.
+
+Les tableaux de listes utilisent data-table et son survol commun sur les lignes
+du corps, avec --table-row-highlight. Réserver le survol aux pointeurs précis
+capables de survol ; appliquer aussi le fond à focus-within pour le clavier.
+Conserver les curseurs des cellules et commandes : une ligne ne devient pas
+cliquable par son surlignage. Exclure les en-têtes et les bordereaux imprimés.
 
 ## Qualité
 
@@ -126,9 +139,12 @@ Utiliser PaginationControls (repris de GreenDesk), via Pagination et usePaginati
 dans shared.jsx, pour toute pagination. Transmettre limit à la requête backend ;
 proposer 5, 10 ou 25 éléments et revenir à la page 1 à chaque changement de taille.
 Désactiver les commandes pendant un chargement ou une opération concurrente. La
-pagination doit tenir dans la largeur de son panneau, sans défilement horizontal
-ni commandes masquées. Autoriser le retour à la ligne des boutons ; conserver
-44 px pour le tactile et utiliser 36 px avec une souris précise.
+pagination doit tenir sur une seule ligne dans la largeur de son panneau, sans
+défilement horizontal. Utiliser des chevrons pour Précédent et Suivant, avec
+libellés accessibles et titres. Les requêtes de conteneur adaptent les liens
+secondaires à la largeur : voisins et ellipses sont retirés sous 28 rem, bornes
+non courantes sous 15 rem. Les deux flèches et la page courante restent visibles.
+Conserver 44 px pour le tactile et utiliser 36 px avec une souris précise.
 
 Réutiliser PaymentMethodIcon pour les quatre moyens. Les variantes payment-method--*
 définissent uniquement --payment-method-color à partir des variables --payment-*-color
@@ -195,6 +211,15 @@ tfoot : les groupes se répètent à chaque feuille et réservent leur propre pl
 Le récapitulatif figure dans la dernière ligne du corps, uniquement en fin de
 bordereau. Le conteneur imprimé reste en flux bloc pour permettre cette répétition.
 Une suppression recharge la première page et réinitialise la sélection.
+Les choix Espèces et Chèques sont désactivés seulement si aucun paiement
+correspondant n’existe, à déposer ou déjà déposé. GET /payments expose
+pendingDeposits et depositedPayments, compteurs globaux indépendants de la page
+et des dates filtrées, lus dans la même transaction que la liste. Le bouton
+Déposer reste désactivé sans paiement à déposer ; un type entièrement déposé
+peut être sélectionné pour Annuler les dépôts. Une annulation groupée réussie
+réinitialise le type et la sélection des paiements ; une erreur réseau conserve
+la sélection et la confirmation pour réessayer. Un dépôt, une suppression ou une annulation recharge ces compteurs.
+Une sélection devenue indisponible est effacée.
 
 Le suivi du dépôt en banque concerne uniquement les espèces et les chèques.
 Les nouveaux paiements et l’historique démarrent « À déposer » ; ce statut est
@@ -319,3 +344,22 @@ dépôt annulé incrémente sa version et reçoit un audit minimal unmark dans l
 commit que l’idempotence. Aucun montant, date ou autre moyen ne change. Les
 couleurs sont warning, comme pour l’annulation individuelle, et la liste ainsi
 que les dépôts annulables sont rechargés après l’action ou un conflit.
+
+## Historique des bordereaux
+
+DepositSlips conserve une projection immuable du document à la validation du lot :
+nom du cabinet, identités minimales, dates, montants et numéros de chèques.
+Archivage, dépôts, audit minimal et résultat idempotent partagent la transaction.
+Aucune donnée personnelle dans les audits ; aucun lien de suppression en cascade
+avec Patients ou Payments. Une annulation ne retire pas l’archive.
+GET /payments/deposits/history est paginé (5 éléments côté interface, 100 maximum
+côté serveur), tri createdAt puis UUID décroissants ; le détail /:id est protégé
+par payments.read. La liste ne projette pas les lignes nominatives du document.
+La réimpression lit le document archivé et ne poste aucun dépôt.
+La première impression utilise le document retourné par le commit serveur.
+La migration 009 reprend les anciennes réponses idempotentes ids/totalCents si
+tous les paiements existent, sont du même type éligible et concordent avec le total.
+Leur identité au moment de l’impression initiale est inconnue : reconstructed=true
+est visible à l’écran et sur le bordereau. Les lots incomplets ne sont pas inventés.
+Migration additive, reprise du DDL et des lots sans doublon ; down supprime les
+archives, jamais les paiements. Une sauvegarde est nécessaire avant tout down utile.

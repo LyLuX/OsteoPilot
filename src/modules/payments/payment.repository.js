@@ -15,6 +15,55 @@ export class PaymentRepository {
   constructor(db) {
     this.models = db.models;
   }
+  createSlip(values, transaction) {
+    requireTransaction(transaction);
+    return this.models.DepositSlips.create(values, { transaction });
+  }
+  slips(query, transaction) {
+    return this.models.DepositSlips.findAndCountAll({
+      attributes: [
+        'id',
+        'method',
+        'cabinetName',
+        'createdAt',
+        'paymentCount',
+        'totalCents',
+        'reconstructed',
+      ],
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+      limit: query.limit,
+      offset: (query.page - 1) * query.limit,
+      transaction,
+    });
+  }
+  slip(id, transaction) {
+    return this.models.DepositSlips.findByPk(id, {
+      attributes: [
+        'id',
+        'method',
+        'cabinetName',
+        'createdAt',
+        'paymentCount',
+        'totalCents',
+        'reconstructed',
+        'items',
+      ],
+      transaction,
+    });
+  }
+  slipPayments(ids, transaction) {
+    return this.models.Payments.findAll({
+      attributes: ['id', 'date', 'createdAt', 'version', 'amountCents', 'chequeNumber'],
+      where: { id: { [Op.in]: ids } },
+      include: [
+        { model: this.models.Patients, as: 'patient', attributes: ['firstName', 'lastName'] },
+      ],
+      transaction,
+    });
+  }
   depositSelection(selection, transaction, limit) {
     requireTransaction(transaction);
     const where = { method: selection.method, bankDeposited: false };
@@ -102,9 +151,19 @@ export class PaymentRepository {
     requireTransaction(transaction);
     return row.update(values, { transaction });
   }
-  list(query) {
+  depositCounts(transaction) {
+    return this.models.Payments.findAll({
+      attributes: ['method', 'bankDeposited', [fn('COUNT', col('id')), 'count']],
+      where: { method: { [Op.in]: ['cash', 'cheque'] } },
+      group: ['method', 'bankDeposited'],
+      raw: true,
+      transaction,
+    });
+  }
+  list(query, transaction) {
     return this.models.Payments.findAndCountAll({
       attributes,
+      transaction,
       where: query.date
         ? { date: query.date }
         : query.from

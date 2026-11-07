@@ -8,7 +8,7 @@ export async function up(db) {
   // DDL MySQL : commits implicites, jamais de fausse promesse de rollback.
   for (const [table, currentAttributes] of Object.entries(definitions)) {
     // Les fonctionnalités suivantes appartiennent aux migrations suivantes.
-    if (table === 'Payments') continue;
+    if (['Payments', 'DepositSlips'].includes(table)) continue;
     const attributes = Object.fromEntries(
       Object.entries(currentAttributes).filter(
         ([field]) =>

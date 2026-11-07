@@ -23,6 +23,18 @@ function DepositSheet({ data }) {
               <div className="deposit-print-heading">
                 <p>Bordereau de dépôt</p>
                 <h2>{paymentMethods.find((method) => method.code === data.method)?.label}</h2>
+                {data.createdAt && (
+                  <p>
+                    Dépôt du{' '}
+                    {new Intl.DateTimeFormat('fr-FR', {
+                      dateStyle: 'short',
+                      timeZone: 'Europe/Paris',
+                    }).format(new Date(data.createdAt))}
+                  </p>
+                )}
+                {data.reconstructed && (
+                  <p>Bordereau reconstitué à partir des informations disponibles.</p>
+                )}
               </div>
             </td>
           </tr>
@@ -71,20 +83,26 @@ function DepositSheet({ data }) {
   );
 }
 
-export default function PaymentDepositPrintPage({ data, onBack }) {
+export default function PaymentDepositPrintPage({
+  data,
+  onBack,
+  readOnly = false,
+  backLabel = 'Retour aux paiements',
+}) {
   const task = useTask();
-  const [committed, setCommitted] = useState(false);
+  const [committed, setCommitted] = useState(readOnly);
+  const [savedData, setSavedData] = useState(data);
   const [conflict, setConflict] = useState(false);
   const pending = useRef(false);
   const key = useRef(null);
   if (!key.current) key.current = createRequestId();
   useEffect(() => {
     const previous = document.title;
-    document.title = 'Bordereau de dépôt - ' + data.cabinetName;
+    document.title = 'Bordereau de dépôt - ' + savedData.cabinetName;
     return () => {
       document.title = previous;
     };
-  }, [data.cabinetName]);
+  }, [savedData.cabinetName]);
   const print = async () => {
     if (pending.current || conflict) return;
     pending.current = true;
@@ -110,7 +128,10 @@ export default function PaymentDepositPrintPage({ data, onBack }) {
           'success',
         );
         if (!result) return;
-        flushSync(() => setCommitted(true));
+        flushSync(() => {
+          if (result.slip) setSavedData(result.slip);
+          setCommitted(true);
+        });
       }
       await task.run(async () => {
         try {
@@ -142,7 +163,7 @@ export default function PaymentDepositPrintPage({ data, onBack }) {
           disabled={task.busy}
           onClick={onBack}
         >
-          Retour aux paiements
+          {backLabel}
         </button>
         <button
           type="button"
@@ -153,21 +174,23 @@ export default function PaymentDepositPrintPage({ data, onBack }) {
           {committed ? 'Réimprimer' : 'Imprimer'}
         </button>
       </div>
-      <p className="muted">
-        Le bouton Imprimer valide le dépôt avant d’ouvrir la boîte d’impression.
-      </p>
+      {!committed && (
+        <p className="muted">
+          Le bouton Imprimer valide le dépôt avant d’ouvrir la boîte d’impression.
+        </p>
+      )}
       {conflict && (
         <p role="status">
           La sélection a changé. Revenez aux paiements pour préparer un nouveau bordereau.
         </p>
       )}
       <div className="deposit-print-preview">
-        <DepositSheet data={data} />
+        <DepositSheet data={savedData} />
       </div>
       {createPortal(
         <div className="deposit-printable" aria-hidden="true">
           {committed ? (
-            <DepositSheet data={data} />
+            <DepositSheet data={savedData} />
           ) : (
             <p>Utilisez le bouton Imprimer du bordereau pour valider le dépôt.</p>
           )}

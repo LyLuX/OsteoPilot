@@ -39,6 +39,14 @@ describe('PaginationControls', () => {
     const user = userEvent.setup();
     const { onPageChange } = renderPagination({ page: 15, totalPages: 50, total: 250 });
 
+    expect(screen.getByRole('button', { name: 'Précédent' }).querySelector('svg')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Suivant' }).querySelector('svg')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
     await user.click(screen.getByRole('button', { name: 'Aller à la page 14' }));
     await user.click(screen.getByRole('button', { name: 'Précédent' }));
     await user.click(screen.getByRole('button', { name: 'Suivant' }));

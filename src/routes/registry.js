@@ -7,6 +7,7 @@ import {
   paymentQuery,
   paymentDepositSelection,
   paymentDepositBatch,
+  depositHistoryQuery,
   paymentDepositCancelQuery,
   paymentDepositCancelInput,
   paymentSummaryQuery,
@@ -32,6 +33,21 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'get',
+    path: '/payments/deposits/history',
+    permission: 'payments.read',
+    query: depositHistoryQuery,
+    action: 'paymentDepositHistory',
+    summary: 'Lister les bordereaux archivés, du plus récent au plus ancien, avec pagination',
+  },
+  {
+    method: 'get',
+    path: '/payments/deposits/history/:id',
+    permission: 'payments.read',
+    action: 'paymentDepositSlip',
+    summary: 'Lire un bordereau archivé pour réimpression sans modifier les paiements',
+  },
   {
     method: 'get',
     path: '/payments/deposits/cancellable',

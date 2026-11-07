@@ -40,6 +40,18 @@ beforeEach(() => {
           .map(({ id, version }) => ({ id, version })),
       };
     return {
+      depositedPayments: Object.fromEntries(
+        ['cash', 'cheque'].map((method) => [
+          method,
+          records.filter((payment) => payment.method === method && payment.bankDeposited).length,
+        ]),
+      ),
+      pendingDeposits: Object.fromEntries(
+        ['cash', 'cheque'].map((method) => [
+          method,
+          records.filter((payment) => payment.method === method && !payment.bankDeposited).length,
+        ]),
+      ),
       items: structuredClone(records.slice((page - 1) * limit, page * limit)),
       pagination: {
         page,
@@ -111,6 +123,8 @@ test('liste vide et erreur de lecture avec nouvelle tentative', async () => {
   show();
   fireEvent.click(await screen.findByRole('button', { name: 'Réessayer' }));
   expect(await screen.findByText('Aucun paiement enregistré.')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Paiements en espèces' })).toBeDisabled();
+  expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).toBeDisabled();
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
 });
 
@@ -255,6 +269,7 @@ test('Déposer ouvre le bordereau ; impression, coche verte puis annulation remp
   fireEvent.click(screen.getByRole('button', { name: 'Retour aux paiements' }));
   const table = await screen.findByRole('table', { name: 'Tous les paiements' });
   expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Paiements en espèces' })).toBeEnabled();
   expect(within(table).getAllByRole('img', { name: 'Paiement déposé' })).toHaveLength(2);
   expect(
     within(table).queryByRole('button', { name: /Supprimer le paiement/ }),
@@ -265,6 +280,7 @@ test('Déposer ouvre le bordereau ; impression, coche verte puis annulation remp
   await waitFor(() =>
     expect(within(screen.getByRole('table')).getAllByRole('checkbox')).toHaveLength(1),
   );
+  expect(screen.getByRole('checkbox', { name: 'Paiements en espèces' })).toBeEnabled();
   expect(mocks.patch).toHaveBeenCalledWith('/payments/payment-0/bank-deposit', {
     bankDeposited: false,
     version: 2,
@@ -341,7 +357,11 @@ test('annulation confirmée de tous les chèques sur toutes les pages, espèces 
   expect(records[5].bankDeposited).toBe(false);
   expect(records[25].bankDeposited).toBe(false);
   expect(records[1].version).toBe(1);
-  expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).not.toBePartiallyChecked();
+  expect(screen.getByRole('button', { name: 'Déposer' })).toBeDisabled();
+  for (const checkbox of within(screen.getByRole('table')).getAllByRole('checkbox'))
+    expect(checkbox).not.toBeChecked();
   expect(screen.getByText('Dépôts annulés.').closest('.toast')).toHaveClass('bg-warning-subtle');
 });
 
@@ -400,6 +420,7 @@ test('annulation en cours : double clic ignoré, commandes désactivées et repr
   fireEvent.click(cancel);
   fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
   await screen.findByRole('alert');
+  expect(screen.getByRole('checkbox', { name: 'Paiements en espèces' })).toBeChecked();
   const key = mocks.post.mock.calls[0][2].headers['Idempotency-Key'];
   fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
@@ -413,4 +434,101 @@ test('annulation en cours : double clic ignoré, commandes désactivées et repr
   });
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   await waitFor(() => expect(cancel).toBeDisabled());
+});
+
+test('types désactivés sans paiement, disponibilité globale et type déposé encore sélectionnable', async () => {
+  records = [
+    { ...records[0], bankDeposited: true },
+    ...records.filter((payment) => payment.method === 'transfer').slice(0, 5),
+    records[4],
+  ];
+  show();
+  await screen.findByRole('table');
+  const cash = screen.getByRole('checkbox', { name: 'Paiements en espèces' });
+  const cheque = screen.getByRole('checkbox', { name: 'Paiements par chèque' });
+  expect(cash).toBeEnabled();
+  expect(cheque).toBeDisabled();
+  fireEvent.click(cash);
+  expect(cash).toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+  const row = (await screen.findByText('Patient 4 Fictif')).closest('tr');
+  fireEvent.click(within(row).getByRole('button', { name: /Supprimer le paiement/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  await screen.findByText('Patient 0 Fictif');
+  await waitFor(() => expect(cash).toBeEnabled());
+  expect(cash).not.toBeChecked();
+  expect(cheque).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Déposer' })).toBeDisabled();
+});
+
+test.each([
+  ['cash', 'Paiements en espèces'],
+  ['cheque', 'Paiements par chèque'],
+])(
+  'type %s entièrement déposé : sélection, annulation sur toutes les pages puis dépôt de nouveau disponible',
+  async (method, label) => {
+    records = records.slice(0, 6).map((payment) => ({ ...payment, method, bankDeposited: true }));
+    mocks.post.mockImplementation(async (path, input) => {
+      if (path !== '/payments/deposits/cancel') throw new Error('Route inattendue');
+      for (const { id, version } of input.items)
+        Object.assign(
+          records.find((payment) => payment.id === id),
+          {
+            bankDeposited: false,
+            version: version + 1,
+          },
+        );
+      return { count: input.items.length };
+    });
+    show();
+    const table = await screen.findByRole('table');
+    expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument();
+    const type = screen.getByRole('checkbox', { name: label });
+    expect(type).toBeEnabled();
+    const deposit = screen.getByRole('button', { name: 'Déposer' });
+    const cancel = screen.getByRole('button', { name: 'Annuler les dépôts' });
+    fireEvent.click(type);
+    await waitFor(() => expect(cancel).toBeEnabled());
+    expect(type).toBeChecked();
+    expect(deposit).toBeDisabled();
+    fireEvent.click(deposit);
+    expect(mocks.post).not.toHaveBeenCalled();
+    fireEvent.click(cancel);
+    expect(screen.getByRole('dialog')).toHaveTextContent('6 paiement(s)');
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(type).toBeEnabled());
+    expect(type).not.toBeChecked();
+    expect(type).not.toBePartiallyChecked();
+    expect(deposit).toBeDisabled();
+    expect(cancel).toBeDisabled();
+    for (const checkbox of within(screen.getByRole('table')).getAllByRole('checkbox'))
+      expect(checkbox).not.toBeChecked();
+    fireEvent.click(type);
+    await waitFor(() => expect(deposit).toBeEnabled());
+    await waitFor(() => expect(cancel).toBeDisabled());
+    expect(records.every((payment) => !payment.bankDeposited)).toBe(true);
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/payments/deposits/cancel',
+      { method, items: records.map(({ id }) => ({ id, version: 1 })), confirmed: true },
+      { headers: { 'Idempotency-Key': expect.any(String) } },
+    );
+  },
+);
+
+test('historique accessible sans sélection et avec le seul droit lecture, retour aux paiements', async () => {
+  mocks.can.mockImplementation((permission) => permission === 'payments.read');
+  const get = mocks.get.getMockImplementation();
+  mocks.get.mockImplementation((path, query) =>
+    path === '/payments/deposits/history'
+      ? Promise.resolve({ items: [], pagination: { page: 1, limit: 5, total: 0, totalPages: 1 } })
+      : get(path, query),
+  );
+  show();
+  await screen.findByRole('table');
+  fireEvent.click(screen.getByRole('button', { name: 'Historique des dépôts' }));
+  await screen.findByText('Aucun bordereau enregistré.');
+  fireEvent.click(screen.getByRole('button', { name: 'Retour aux paiements' }));
+  await screen.findByRole('table', { name: 'Tous les paiements' });
+  expect(mocks.post).not.toHaveBeenCalled();
 });

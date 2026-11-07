@@ -160,3 +160,32 @@ test('bordereau espèces sans colonne de numéro de chèque', () => {
   show();
   expect(screen.queryByRole('columnheader', { name: 'Numéro de chèque' })).not.toBeInTheDocument();
 });
+
+test('bordereau archivé : réimpression en lecture seule, même si le dépôt a été annulé', async () => {
+  show({
+    data: { ...data, reconstructed: true, createdAt: '2026-11-07T12:00:00Z' },
+    readOnly: true,
+    backLabel: 'Retour à l’historique',
+  });
+  expect(screen.getByRole('table')).toHaveTextContent('Bordereau reconstitué');
+  expect(document.querySelector('.deposit-printable')).toHaveTextContent('Exemple Fictif');
+  expect(screen.queryByText(/Le bouton Imprimer valide/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Réimprimer' }));
+  await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
+  expect(mocks.post).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Retour à l’historique' })).toBeInTheDocument();
+});
+test('la première impression utilise le document archivé renvoyé par le serveur', async () => {
+  mocks.post.mockResolvedValue({
+    slip: {
+      ...data,
+      cabinetName: 'Cabinet au dépôt',
+      items: [{ ...data.items[0], patient: { firstName: 'Nom validé', lastName: 'Archive' } }],
+    },
+  });
+  show();
+  fireEvent.click(screen.getByRole('button', { name: 'Imprimer' }));
+  await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
+  expect(document.querySelector('.deposit-printable')).toHaveTextContent('Cabinet au dépôt');
+  expect(document.querySelector('.deposit-printable')).toHaveTextContent('Archive Nom validé');
+});

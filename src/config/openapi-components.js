@@ -116,10 +116,11 @@ export const components = {
     PaymentDepositBatch: {
       type: 'object',
       additionalProperties: false,
-      required: ['ids', 'totalCents'],
+      required: ['ids', 'totalCents', 'slip'],
       description:
-        'Dépôt de la sélection exacte du bordereau, avant ouverture de la boîte d’impression. Versions revérifiées sous verrou, refus global en cas de conflit, audit par paiement et idempotence atomiques. Aucun nom ni numéro de chèque dans les audits.',
+        'Dépôt de la sélection exacte du bordereau, avant ouverture de la boîte d’impression. Versions revérifiées sous verrou, refus global en cas de conflit, audit par paiement, archivage immuable du bordereau et idempotence atomiques. Aucun nom ni numéro de chèque dans les audits.',
       properties: {
+        slip: ref('DepositSlip'),
         ids: {
           type: 'array',
           minItems: 1,
@@ -130,8 +131,95 @@ export const components = {
         totalCents: { type: 'integer', minimum: 1 },
       },
     },
+    DepositSlipSummary: {
+      type: 'object',
+      required: [
+        'id',
+        'createdAt',
+        'method',
+        'cabinetName',
+        'paymentCount',
+        'totalCents',
+        'reconstructed',
+      ],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        createdAt: { type: 'string', format: 'date-time' },
+        method: { type: 'string', enum: ['cash', 'cheque'] },
+        cabinetName: { type: 'string', minLength: 1, maxLength: 100 },
+        paymentCount: { type: 'integer', minimum: 1, maximum: 5000 },
+        totalCents: { type: 'integer', minimum: 1, maximum: 499999995000 },
+        reconstructed: {
+          type: 'boolean',
+          description:
+            'Ancien lot récupéré : identités disponibles à la migration, non garanties identiques au document initial. Les lots incomplets ne sont pas récupérés.',
+        },
+      },
+    },
+    DepositSlip: {
+      allOf: [
+        ref('DepositSlipSummary'),
+        {
+          type: 'object',
+          required: ['items'],
+          properties: {
+            items: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 5000,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['id', 'version', 'date', 'amountCents', 'chequeNumber', 'patient'],
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  version: { type: 'integer', minimum: 1 },
+                  date: { type: 'string', format: 'date' },
+                  amountCents: { type: 'integer', minimum: 1 },
+                  chequeNumber: { type: ['string', 'null'], maxLength: 30 },
+                  patient: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['firstName', 'lastName'],
+                    properties: { firstName: { type: 'string' }, lastName: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+      description:
+        'Document immuable archivé au dépôt : nom du cabinet, identités minimales, dates, numéros de chèques et montants. Lecture et réimpression sans mutation sous payments.read, même après annulation ou suppression d’un paiement.',
+    },
     Payments: {
       ...paginated('Payment'),
+      required: ['items', 'pagination', 'pendingDeposits', 'depositedPayments'],
+      properties: {
+        ...paginated('Payment').properties,
+        depositedPayments: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['cash', 'cheque'],
+          description:
+            'Nombre de paiements déjà déposés par type, toutes pages et dates confondues. Un type reste sélectionnable pour annuler ses dépôts même si pendingDeposits vaut zéro.',
+          properties: {
+            cash: { type: 'integer', minimum: 0 },
+            cheque: { type: 'integer', minimum: 0 },
+          },
+        },
+        pendingDeposits: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['cash', 'cheque'],
+          description:
+            'Nombre de paiements à déposer par type, toutes pages et dates confondues, indépendamment des filtres de la liste.',
+          properties: {
+            cash: { type: 'integer', minimum: 0 },
+            cheque: { type: 'integer', minimum: 0 },
+          },
+        },
+      },
       description:
         'Liste paginée de tous les paiements sans filtre de date, y compris moyens et patients désactivés. Filtre facultatif par jour ou période inclusive de 366 jours maximum. Tri par date et création décroissantes, puis UUID croissant. Droit payments.read requis.',
     },

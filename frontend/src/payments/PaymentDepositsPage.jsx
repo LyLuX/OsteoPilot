@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import {
   PageTitle,
@@ -12,6 +12,7 @@ import {
 } from '../components/shared.jsx';
 import { api } from '../api/client.js';
 import { createRequestId } from '../api/request-id.js';
+import PaymentDepositHistoryPage from './PaymentDepositHistoryPage.jsx';
 import PaymentDepositPrintPage from './PaymentDepositPrintPage.jsx';
 import PaymentDepositControl from './PaymentDepositControl.jsx';
 import PaymentDeleteControl from './PaymentDeleteControl.jsx';
@@ -29,6 +30,7 @@ export default function PaymentDepositsPage() {
   const [selection, setSelection] = useState(emptySelection);
   const [actionBusy, setBusy] = useState(false);
   const [printData, setPrintData] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [cancelRequest, setCancelRequest] = useState(null);
   const cancelling = useRef(false);
   const task = useTask();
@@ -47,6 +49,13 @@ export default function PaymentDepositsPage() {
     cancellable.data?.method === selection.method &&
     cancellable.data.items.length > 0;
   const ready = resource.current && !resource.loading && !resource.error && resource.data;
+  const methodAvailable = (method) =>
+    resource.data?.pendingDeposits?.[method] > 0 || resource.data?.depositedPayments?.[method] > 0;
+  const selectedMethodUnavailable =
+    Boolean(ready && selection.method) && !methodAvailable(selection.method);
+  useEffect(() => {
+    if (selectedMethodUnavailable) setSelection(emptySelection());
+  }, [selectedMethodUnavailable]);
   const selected = (payment) =>
     eligible(payment) &&
     selection.method === payment.method &&
@@ -79,11 +88,20 @@ export default function PaymentDepositsPage() {
     return (
       <PaymentDepositPrintPage
         data={printData}
+        readOnly={Boolean(printData.archived)}
+        backLabel={printData.archived ? 'Retour à l’historique' : 'Retour aux paiements'}
         onBack={() => {
           setPrintData(null);
-          setSelection(emptySelection());
+          if (!printData.archived) setSelection(emptySelection());
           resource.reload();
         }}
+      />
+    );
+  if (historyOpen)
+    return (
+      <PaymentDepositHistoryPage
+        onBack={() => setHistoryOpen(false)}
+        onPrint={(data) => setPrintData({ ...data, archived: true })}
       />
     );
   return (
@@ -91,7 +109,7 @@ export default function PaymentDepositsPage() {
       <PageTitle eyebrow="Gestion paiements" title="Déposer" />
       <Panel className="payment-selection-panel">
         <h2>Sélection des paiements à déposer</h2>
-        <fieldset disabled={!ready || busy || !can('payments.deposit')}>
+        <fieldset disabled={!ready || busy}>
           <legend className="visually-hidden">Choisir un seul type de paiement</legend>
           <div className="payment-selection-row">
             <div className="payment-selection-options">
@@ -103,6 +121,7 @@ export default function PaymentDepositsPage() {
                   <input
                     type="checkbox"
                     className="form-check-input"
+                    disabled={!can('payments.deposit') || !methodAvailable(method)}
                     checked={
                       selection.method === method && selection.all && selection.excluded.size === 0
                     }
@@ -125,57 +144,70 @@ export default function PaymentDepositsPage() {
                 </label>
               ))}
             </div>
-            {can('payments.deposit') && (
-              <div className="payment-selection-actions">
-                <button
-                  type="button"
-                  className="btn btn-outline-success"
-                  disabled={!selection.method || (!selection.all && selection.ids.size === 0)}
-                  onClick={async () => {
-                    if (preparing.current) return;
-                    preparing.current = true;
-                    try {
-                      const result = await task.run(async () => {
-                        try {
-                          return await api.post('/payments/deposits/preview', {
-                            method: selection.method,
-                            all: selection.all,
-                            ids: [...selection.ids],
-                            excluded: [...selection.excluded],
-                          });
-                        } catch (error) {
-                          if (error.response?.status === 409) {
-                            setSelection(emptySelection());
-                            resource.reload();
-                          }
-                          throw error;
-                        }
-                      });
-                      if (result) setPrintData(result);
-                    } finally {
-                      preparing.current = false;
+            <div className="payment-selection-actions">
+              {can('payments.deposit') && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-outline-success"
+                    disabled={
+                      !selection.method ||
+                      !(resource.data?.pendingDeposits?.[selection.method] > 0) ||
+                      (!selection.all && selection.ids.size === 0)
                     }
-                  }}
-                >
-                  Déposer
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline-warning"
-                  disabled={!canCancel}
-                  onClick={() => {
-                    if (!canCancel) return;
-                    setCancelRequest({
-                      method: selection.method,
-                      items: cancellable.data.items.map(({ id, version }) => ({ id, version })),
-                      key: createRequestId(),
-                    });
-                  }}
-                >
-                  Annuler les dépôts
-                </button>
-              </div>
-            )}
+                    onClick={async () => {
+                      if (preparing.current) return;
+                      preparing.current = true;
+                      try {
+                        const result = await task.run(async () => {
+                          try {
+                            return await api.post('/payments/deposits/preview', {
+                              method: selection.method,
+                              all: selection.all,
+                              ids: [...selection.ids],
+                              excluded: [...selection.excluded],
+                            });
+                          } catch (error) {
+                            if (error.response?.status === 409) {
+                              setSelection(emptySelection());
+                              resource.reload();
+                            }
+                            throw error;
+                          }
+                        });
+                        if (result) setPrintData(result);
+                      } finally {
+                        preparing.current = false;
+                      }
+                    }}
+                  >
+                    Déposer
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-warning"
+                    disabled={!canCancel}
+                    onClick={() => {
+                      if (!canCancel) return;
+                      setCancelRequest({
+                        method: selection.method,
+                        items: cancellable.data.items.map(({ id, version }) => ({ id, version })),
+                        key: createRequestId(),
+                      });
+                    }}
+                  >
+                    Annuler les dépôts
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="btn btn-outline-info"
+                onClick={() => setHistoryOpen(true)}
+              >
+                Historique des dépôts
+              </button>
+            </div>
           </div>
         </fieldset>
         {selection.method && cancellable.error && <ResourceState resource={cancellable} />}
@@ -350,6 +382,7 @@ export default function PaymentDepositsPage() {
               );
               if (result) {
                 setCancelRequest(null);
+                setSelection(emptySelection());
                 setPage(1);
                 resource.reload();
                 cancellable.reload();

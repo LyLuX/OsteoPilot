@@ -40,6 +40,11 @@ import {
   up as chequeNumberUp,
   down as chequeNumberDown,
 } from '../../../migrations/202611070008-payment-cheque-number.js';
+import {
+  migrationName as slipsName,
+  up as slipsUp,
+  down as slipsDown,
+} from '../../../migrations/202611070009-deposit-slips.js';
 const migrations = [
   { name: initialName, up: initialUp, down: initialDown },
   { name: paymentsName, up: paymentsUp, down: paymentsDown },
@@ -49,6 +54,7 @@ const migrations = [
   { name: deleteName, up: deleteUp, down: deleteDown },
   { name: tariffsName, up: tariffsUp, down: tariffsDown },
   { name: chequeNumberName, up: chequeNumberUp, down: chequeNumberDown },
+  { name: slipsName, up: slipsUp, down: slipsDown },
 ];
 const knownHistory = (history) =>
   history.length <= migrations.length &&

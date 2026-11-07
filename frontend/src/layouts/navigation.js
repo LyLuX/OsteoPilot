@@ -13,12 +13,6 @@ export const navigation = [
     items: [
       { label: 'Patientèle', path: '/patients', permission: 'patients.read', icon: '♧' },
       {
-        label: 'Création d’un patient',
-        path: '/patients/new',
-        permission: 'patients.create',
-        icon: '+',
-      },
-      {
         label: 'Importer / Exporter',
         path: '/patients/transfer',
         permission: 'patients.import',

@@ -55,6 +55,8 @@ export function responseSchema(action) {
   if (action === 'patientPayments') return ref('PatientPayments');
   if (action === 'paymentDepositsCancellable') return ref('CancellableDeposits');
   if (action === 'paymentDepositsCancel') return ref('CancelledDeposits');
+  if (action === 'paymentDepositHistory') return paginated('DepositSlipSummary');
+  if (action === 'paymentDepositSlip') return ref('DepositSlip');
   if (action === 'paymentDepositPreview') return ref('PaymentDepositPreview');
   if (action === 'paymentDepositBatch') return ref('PaymentDepositBatch');
   if (action === 'paymentsSummary') return ref('PaymentSummary');
@@ -196,6 +198,12 @@ for (const route of routes) {
     operationId: route.action,
     summary: route.summary,
     'x-permission': route.permission || null,
+    ...(route.action === 'paymentsList'
+      ? {
+          description:
+            'pendingDeposits et depositedPayments indiquent les nombres globaux d’espèces et de chèques à déposer et déjà déposés, indépendamment de la pagination et des filtres de dates. Ces compteurs et la liste sont lus dans une même transaction cohérente.',
+        }
+      : {}),
     ...(route.action === 'paymentDepositPreview'
       ? {
           description:

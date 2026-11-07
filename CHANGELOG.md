@@ -2,6 +2,41 @@
 
 ## Non publié
 
+## 0.11.0 - 2026-11-07
+
+- [PATCH] Intégration des ajustements du propriétaire : retrait du lien
+  Création d’un patient du menu et activation de changeOrigin dans le proxy
+  de développement Vite.
+
+- [MINOR] Historique des dépôts accessible à côté des actions de dépôt et
+  d’annulation : liste paginée et réimpression des bordereaux sans modifier
+  les paiements. Les nouveaux documents sont archivés avec leurs informations
+  d’origine dans la transaction du dépôt. La migration 009 récupère les anciens
+  lots complets identifiables, signalés comme reconstitués à partir des données
+  disponibles ; les paiements et leurs statuts sont préservés.
+
+- [PATCH] Les lignes des tableaux de patients, paiements et historique sont
+  surlignées au passage de la souris et lorsqu’une commande de la ligne reçoit
+  le focus clavier. Le fond reprend le vert du thème ; les en-têtes et les
+  bordereaux imprimés sont préservés.
+
+- [PATCH] La lisibilité du thème commun est renforcée : fond de page mieux
+  séparé des panneaux blancs, textes secondaires plus foncés, champs et focus
+  plus visibles. Boutons, notifications, tableaux, sélecteurs et états désactivés
+  reprennent des couleurs cohérentes et contrastées sur tout le site.
+
+- [PATCH] Un type de paiement reste sélectionnable lorsqu’il existe des
+  paiements à déposer ou déjà déposés, sur toutes les pages. Déposer est
+  désactivé sans paiement à déposer ; Annuler les dépôts permet de revenir
+  sur un dépôt même si tous les paiements de ce type sont déposés. Les états
+  se mettent à jour après dépôt, suppression ou annulation. Après une annulation
+  confirmée et réussie, le type et les paiements sont désélectionnés.
+
+- [PATCH] La pagination reste sur une seule ligne : Précédent et Suivant sont
+  remplacés par des chevrons accessibles et les liens directs s’adaptent à la
+  largeur du panneau, sans défilement horizontal. Les flèches et la page courante
+  restent visibles, avec les cibles tactiles conservées.
+
 ## 0.10.0 - 2026-11-07
 
 - [MINOR] Annuler les dépôts, à côté de Déposer, annule après confirmation tous
