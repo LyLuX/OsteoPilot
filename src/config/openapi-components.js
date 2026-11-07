@@ -383,7 +383,7 @@ export const components = {
         bankDeposited: {
           type: ['boolean', 'null'],
           description:
-            'Espèces et chèques : false = à déposer, true = déposé en banque. Carte et virement : null (sans objet). Les paiements existants sont initialisés à false sans déduire leur dépôt réel.',
+            'Espèces et chèques : false = à déposer, true = déposé en banque. Carte et virement : null (sans objet). Les paiements existants sont initialisés à false sans déduire leur dépôt réel. Tout nouveau dépôt passe par un bordereau dans Gestion paiements ; le PATCH individuel est réservé à l’annulation.',
         },
         version: {
           type: 'integer',

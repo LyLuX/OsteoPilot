@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.12.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.12.1** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -358,3 +358,9 @@ payments.deposits.delete ; les paiements restent conservés. La migration 010 aj
 les droits payments.deposit.cancel, payments.deposits.read, payments.deposits.reprint
 et payments.deposits.delete au rôle ADMIN uniquement. Configurer explicitement les
 rôles personnalisés. La matrice des actions et prérequis figure dans docs/conventions.md.
+
+Les nouveaux dépôts se font exclusivement dans Gestion paiements > Déposer,
+avec validation et archivage du bordereau. La fiche patient affiche le statut et
+permet seulement l’annulation d’un dépôt avec le droit correspondant. L’ancien
+PATCH individuel bank-deposit accepte uniquement false (annulation) ; true est
+refusé avec 422. La validation d’un dépôt passe par POST /payments/deposits.

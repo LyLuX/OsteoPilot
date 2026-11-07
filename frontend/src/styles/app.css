@@ -381,7 +381,7 @@ a {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  min-height: 44px;
+  min-height: 30px;
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
@@ -1475,10 +1475,35 @@ dialog::backdrop {
   font-weight: 600;
 }
 
+.tariffs-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  max-width: 64rem;
+  margin-inline: auto;
+}
+.tariffs-grid > form {
+  min-width: 0;
+}
 .tariff-form {
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
-  margin-top: 1rem;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: var(--surface-subtle);
+}
+@media (min-width: 992px) {
+  .tariffs-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .tariffs-grid > form {
+    grid-column: span 2;
+  }
+  .tariffs-grid > form:last-child:nth-child(odd) {
+    grid-column: 2 / span 2;
+  }
 }
 .tariff-form legend {
   overflow-wrap: anywhere;

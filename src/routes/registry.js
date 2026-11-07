@@ -155,10 +155,11 @@ export const routes = [
   {
     method: 'patch',
     path: '/payments/:id/bank-deposit',
-    permission: 'payments.read',
+    permission: 'payments.deposit.cancel',
     body: paymentDepositInput,
     action: 'paymentBankDeposit',
-    summary: 'Marquer ou annuler le dépôt en banque d’un paiement espèces ou chèque, avec version',
+    summary:
+      'Annuler uniquement le dépôt d’un paiement espèces ou chèque, avec version ; payments.read requis',
   },
   {
     method: 'get',

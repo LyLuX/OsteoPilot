@@ -65,9 +65,7 @@ export default function PatientPayments({ id }) {
                   </div>
                   <PaymentDepositControl
                     payment={payment}
-                    canUpdate={can(
-                      payment.bankDeposited ? 'payments.deposit.cancel' : 'payments.deposit',
-                    )}
+                    canUpdate={payment.bankDeposited && can('payments.deposit.cancel')}
                     onSaved={resource.reload}
                   />
                 </li>

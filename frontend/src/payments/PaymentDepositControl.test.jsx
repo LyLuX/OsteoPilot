@@ -24,40 +24,31 @@ const show = (props = {}) =>
     </NotificationProvider>,
   );
 test.each(['cash', 'cheque'])(
-  'statut %s, marquage vert et annulation jaune avec version',
+  'statut %s sans dépôt individuel, annulation jaune avec version',
   async (method) => {
     const onSaved = vi.fn();
     const view = show({ payment: { ...payment, method }, onSaved });
     expect(screen.getByText('À déposer')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Déposer' })).toHaveClass('btn-outline-success');
-    fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(mocks.patch).toHaveBeenCalledWith('/payments/' + payment.id + '/bank-deposit', {
-      bankDeposited: true,
-      version: 1,
-    });
-    expect(
-      screen.getByText('Paiement marqué comme déposé en banque.').closest('.toast'),
-    ).toHaveClass('bg-success-subtle');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(mocks.patch).not.toHaveBeenCalled();
     view.rerender(
       <NotificationProvider>
         <PaymentDepositControl
           payment={{ ...payment, method, bankDeposited: true, version: 2 }}
-          canUpdate={true}
+          canUpdate
           onSaved={onSaved}
         />
       </NotificationProvider>,
     );
     expect(screen.getByText('Déposé')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Annuler le dépôt' })).toHaveClass(
-      'btn-outline-warning',
-    );
     fireEvent.click(screen.getByRole('button', { name: 'Annuler le dépôt' }));
-    await waitFor(() =>
-      expect(mocks.patch).toHaveBeenLastCalledWith('/payments/' + payment.id + '/bank-deposit', {
-        bankDeposited: false,
-        version: 2,
-      }),
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.patch).toHaveBeenCalledWith('/payments/' + payment.id + '/bank-deposit', {
+      bankDeposited: false,
+      version: 2,
+    });
+    expect(screen.getByText('Dépôt en banque annulé.').closest('.toast')).toHaveClass(
+      'bg-warning-subtle',
     );
   },
 );
@@ -76,20 +67,20 @@ test('échec : statut inchangé et message Bootstrap rouge', async () => {
     response: { status: 500, data: { error: { message: 'Dépôt indisponible.' } } },
   });
   const onSaved = vi.fn();
-  show({ onSaved });
-  fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
+  show({ onSaved, payment: { ...payment, bankDeposited: true, version: 2 } });
+  fireEvent.click(screen.getByRole('button', { name: 'Annuler le dépôt' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Dépôt indisponible.');
-  expect(screen.getByText('À déposer')).toBeInTheDocument();
+  expect(screen.getByText('Déposé')).toBeInTheDocument();
   expect(onSaved).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Déposer' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Annuler le dépôt' })).toBeEnabled();
 });
 test('conflit : actualisation demandée et erreur de concurrence conservée', async () => {
   mocks.patch.mockRejectedValue({
     response: { status: 409, data: { error: { message: 'Ce paiement a changé.' } } },
   });
   const onSaved = vi.fn();
-  show({ onSaved });
-  fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
+  show({ onSaved, payment: { ...payment, bankDeposited: true, version: 2 } });
+  fireEvent.click(screen.getByRole('button', { name: 'Annuler le dépôt' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Ce paiement a changé.');
   expect(onSaved).toHaveBeenCalledOnce();
 });
@@ -102,8 +93,8 @@ test('requête en cours : commande désactivée et double clic sans doublon', as
       }),
   );
   const onSaved = vi.fn();
-  show({ onSaved });
-  const button = screen.getByRole('button', { name: 'Déposer' });
+  show({ onSaved, payment: { ...payment, bankDeposited: true, version: 2 } });
+  const button = screen.getByRole('button', { name: 'Annuler le dépôt' });
   fireEvent.click(button);
   fireEvent.click(button);
   expect(button).toBeDisabled();

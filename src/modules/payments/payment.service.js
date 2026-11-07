@@ -393,8 +393,7 @@ export class PaymentService {
   async setBankDeposit(token, csrf, id, values) {
     id = parse(uuid, id);
     const input = parse(paymentDepositInput, values);
-    const permission = input.bankDeposited ? 'payments.deposit' : 'payments.deposit.cancel';
-    return this.auth.write(token, csrf, permission, async (ctx, tx) => {
+    return this.auth.write(token, csrf, 'payments.deposit.cancel', async (ctx, tx) => {
       this.auth.permit(ctx, 'payments.read');
       const row = await this.repository.findForUpdate(id, tx);
       assert(row, 'Paiement introuvable.', 404);
@@ -418,9 +417,7 @@ export class PaymentService {
         this.db,
         {
           actorId: ctx.user.id,
-          action: input.bankDeposited
-            ? 'payments.bank-deposit.mark'
-            : 'payments.bank-deposit.unmark',
+          action: 'payments.bank-deposit.unmark',
           entity: 'payment',
           entityId: row.id,
         },

@@ -88,10 +88,12 @@ export default function TariffsPanel({ settings }) {
   return (
     <Panel className="tariffs-panel">
       <h2>Tarifs</h2>
-      {tariffs.map((tariff) => (
-        <TariffForm key={tariff.id + ':' + tariff.version} tariff={tariff} onSaved={saved} />
-      ))}
-      {can('settings.update') && tariffs.length < 100 && <TariffForm onSaved={saved} />}
+      <div className="tariffs-grid">
+        {tariffs.map((tariff) => (
+          <TariffForm key={tariff.id + ':' + tariff.version} tariff={tariff} onSaved={saved} />
+        ))}
+        {can('settings.update') && tariffs.length < 100 && <TariffForm onSaved={saved} />}
+      </div>
     </Panel>
   );
 }

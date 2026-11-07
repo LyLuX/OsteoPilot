@@ -172,8 +172,11 @@ Le menu Gestion paiements > Déposer liste tous les paiements via GET /payments
 avec page et limit, sans filtre de date. La lecture exige payments.read. Le tableau
 réutilise la pagination commune et affiche uniquement les statuts dans la colonne
 Dépôt, sans boutons : À déposer ou Déposé pour les espèces et chèques, Sur le compte
-pour les virements et Sans objet pour la carte. Les commandes de dépôt et d’annulation
-des autres écrans exigent respectivement payments.deposit et payments.deposit.cancel. Le panneau du calendrier
+pour les virements et Sans objet pour la carte. Dans la colonne Déposer, les
+virements affichent une coche verte avec le libellé Virement sur le compte.
+Tout nouveau dépôt passe exclusivement par Gestion paiements et le bordereau ;
+les autres écrans affichent les statuts et proposent seulement l’annulation
+sous payments.deposit.cancel. Le panneau du calendrier
 présente le moyen et le badge de statut dans deux spans enfants d’une même div,
 avec le badge aligné à droite.
 La suppression avec confirmation reste disponible dans la fiche patient et dans
@@ -383,8 +386,10 @@ personnalisés doivent recevoir explicitement les actions voulues via Permission
 | Lire le détail et réimprimer un bordereau          | payments.deposits.reprint | payments.read, payments.deposits.read |
 | Supprimer un bordereau reconstitué                 | payments.deposits.delete  | payments.read, payments.deposits.read |
 
-Le PATCH bank-deposit vérifie le droit correspondant à la valeur demandée, avant
-même de traiter un changement sans effet. Les boutons Déposer et Annuler sont
+Le PATCH bank-deposit accepte uniquement bankDeposited=false et exige
+payments.read et payments.deposit.cancel, même pour une annulation sans effet.
+Le marquage individuel true est refusé avec 422 ; seul POST /payments/deposits
+valide un nouveau dépôt et archive son bordereau. Les boutons Déposer et Annuler sont
 indépendants ; un utilisateur limité à l’annulation peut choisir le type mais
 ne peut pas cocher les paiements à déposer. Consulter l’historique n’accorde ni
 réimpression ni suppression. Le bouton de première impression effectue le dépôt ;
@@ -398,3 +403,18 @@ exige confirmation, origine et CSRF ; verrou de ligne et audit minimal dans la
 même transaction. La suppression du document ne supprime ni ne dépose ni n’annule
 aucun paiement. Une erreur d’audit conserve le document. Un UUID déjà supprimé
 renvoie 404. La migration 009 n’est pas rejouée lors d’une suppression.
+
+## Présentation des tarifs et cases à cocher
+
+Dans le paramétrage, tarifs-grid dispose les formulaires sur une colonne avant
+992 px puis deux par ligne, avec le dernier centré si le nombre est impair.
+Le formulaire d’ajout suit la même disposition. Conserver des formulaires
+indépendants, les brouillons et les états de validation de chaque tarif.
+La largeur totale reste limitée à 64rem et les libellés longs peuvent se replier.
+Les libellés check-label ont une hauteur minimale de 30 px, à la demande du
+propriétaire ; les dimensions des cases elles-mêmes restent définies séparément.
+
+La fiche patient et PaymentDepositControl ne présentent aucune commande de dépôt,
+même avec payments.deposit. Le contrôle partagé conserve le badge et l’annulation
+d’un paiement déposé. Toutes les entrées de l’interface doivent orienter un nouveau
+dépôt vers Gestion paiements ; aucun appel de marquage individuel n’est permis.

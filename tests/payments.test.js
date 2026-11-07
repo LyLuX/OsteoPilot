@@ -68,11 +68,12 @@ test('liste et synthèse : année bissextile et filtres exclusifs validés', () 
 });
 
 test('dépôt : booléen et version stricts, projection explicite des seuls moyens éligibles', () => {
-  expect(parse(paymentDepositInput, { bankDeposited: true, version: 1 })).toEqual({
-    bankDeposited: true,
+  expect(parse(paymentDepositInput, { bankDeposited: false, version: 1 })).toEqual({
+    bankDeposited: false,
     version: 1,
   });
   for (const values of [
+    { bankDeposited: true, version: 1 },
     { bankDeposited: 'true', version: 1 },
     { bankDeposited: true, version: 0 },
     { bankDeposited: true, version: 1.5 },

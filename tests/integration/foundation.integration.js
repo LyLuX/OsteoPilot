@@ -1,3 +1,4 @@
+import { publicPayment } from '../../src/modules/payments/payment.validator.js';
 import { todayInParis } from '../../src/core/civil-date.js';
 import { up as initialUp } from '../../migrations/202610290001-initial.js';
 import { randomUUID } from 'node:crypto';
@@ -67,6 +68,17 @@ beforeAll(async () => {
 });
 afterEach(() => jest.restoreAllMocks());
 afterAll(async () => db.sequelize.close());
+// Fixtures use the same archived-batch operation as Gestion paiements.
+const markPayment = async (token, csrf, id, { version }) => {
+  const row = await db.models.Payments.findByPk(id, { attributes: ['method'] });
+  await payments.depositBatch(
+    token,
+    csrf,
+    { method: row.method, items: [{ id, version }] },
+    randomUUID(),
+  );
+  return publicPayment(await db.models.Payments.findByPk(id));
+};
 const snapshot = async () =>
   Object.fromEntries(
     await Promise.all(
@@ -865,7 +877,7 @@ test('paiements : disponibilité globale des dépôts indépendante des pages et
   expect(pending.body.data.pendingDeposits).toEqual({ ...before, cheque: before.cheque + 1 });
   expect(pending.body.data.pendingDeposits).toEqual(await expected(false));
   expect(pending.body.data.depositedPayments).toEqual(depositedBefore);
-  await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+  await markPayment(session.token, session.csrfToken, row.id, {
     bankDeposited: true,
     version: 1,
   });
@@ -974,9 +986,8 @@ test('dépôt banque : espèces et chèques, aller-retour audité, lecture et to
         .set('Cookie', 'osteopilot.access=' + session.token)
         .set('X-CSRF-Token', session.csrfToken)
         .send(body);
-    const mark = await send({ bankDeposited: true, version: 1 });
-    expect(mark.status).toBe(200);
-    expect(mark.body.data).toMatchObject({
+    const mark = await markPayment(session.token, session.csrfToken, row.id, { version: 1 });
+    expect(mark).toMatchObject({
       id: row.id,
       bankDeposited: true,
       version: 2,
@@ -991,7 +1002,7 @@ test('dépôt banque : espèces et chèques, aller-retour audité, lecture et to
     expect((await payments.summary({ from: row.date, to: row.date })).days).toEqual(before.days);
     expect((await send({ bankDeposited: false, version: 1 })).status).toBe(409);
     const count = await db.models.AuditLogs.count();
-    expect((await send({ bankDeposited: true, version: 2 })).status).toBe(200);
+    expect((await send({ bankDeposited: true, version: 2 })).status).toBe(422);
     expect(await db.models.AuditLogs.count()).toBe(count);
     const unmark = await send({ bankDeposited: false, version: 2 });
     expect(unmark.body.data).toMatchObject({ bankDeposited: false, version: 3 });
@@ -1023,7 +1034,7 @@ test('dépôt banque : refus moyens inéligibles, version, permission, CSRF et U
     expect(row.bankDeposited).toBeNull();
     await expect(
       payments.setBankDeposit(session.token, session.csrfToken, row.id, {
-        bankDeposited: true,
+        bankDeposited: false,
         version: 1,
       }),
     ).rejects.toMatchObject({ status: 422 });
@@ -1048,7 +1059,7 @@ test('dépôt banque : refus moyens inéligibles, version, permission, CSRF et U
     (
       await send(
         row.id,
-        { bankDeposited: true, version: 1 },
+        { bankDeposited: false, version: 1 },
         reader.session.token,
         reader.session.csrfToken,
       )
@@ -1056,21 +1067,28 @@ test('dépôt banque : refus moyens inéligibles, version, permission, CSRF et U
   ).toBe(403);
   await expect(
     payments.setBankDeposit(reader.session.token, reader.session.csrfToken, row.id, {
-      bankDeposited: true,
+      bankDeposited: false,
       version: 1,
     }),
   ).rejects.toMatchObject({ status: 403 });
   expect(
-    (await send(row.id, { bankDeposited: true, version: 1 }, session.token, 'invalid')).status,
+    (await send(row.id, { bankDeposited: false, version: 1 }, session.token, 'invalid')).status,
   ).toBe(403);
-  expect((await send('invalide', { bankDeposited: true, version: 1 })).status).toBe(422);
-  expect((await send(randomUUID(), { bankDeposited: true, version: 1 })).status).toBe(404);
+  expect((await send('invalide', { bankDeposited: false, version: 1 })).status).toBe(422);
+  expect((await send(randomUUID(), { bankDeposited: false, version: 1 })).status).toBe(404);
   for (const body of [
     { bankDeposited: 'true', version: 1 },
-    { bankDeposited: true, version: 0 },
-    { bankDeposited: true, version: 1, method: 'cash' },
+    { bankDeposited: false, version: 0 },
+    { bankDeposited: false, version: 1, method: 'cash' },
   ])
     expect((await send(row.id, body)).status).toBe(422);
+  expect((await send(row.id, { bankDeposited: true, version: 1 })).status).toBe(422);
+  await expect(
+    payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+      bankDeposited: true,
+      version: 1,
+    }),
+  ).rejects.toMatchObject({ status: 422 });
   expect(await snapshot()).toEqual(before);
   const stored = await db.models.Payments.findByPk(row.id);
   expect(stored.bankDeposited).toBe(false);
@@ -1091,12 +1109,7 @@ test('dépôt banque : concurrence et rollback atomique si l’audit échoue', a
     version: 1,
   });
   const results = await Promise.allSettled(
-    [true, true].map((bankDeposited) =>
-      payments.setBankDeposit(session.token, session.csrfToken, row.id, {
-        bankDeposited,
-        version: 1,
-      }),
-    ),
+    [0, 1].map(() => markPayment(session.token, session.csrfToken, row.id, { version: 1 })),
   );
   // La première écriture prend le verrou et avance la version ; l’autre ne l’écrase pas.
   expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
@@ -1158,7 +1171,7 @@ test('migration du dépôt depuis des paiements existants : montants préservés
     before.length,
   );
   const row = await db.models.Payments.findOne({ where: { method: 'cash' } });
-  await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+  await markPayment(session.token, session.csrfToken, row.id, {
     bankDeposited: true,
     version: 1,
   });
@@ -1409,7 +1422,7 @@ test('suppression atomique : rollback audit, paiement déposé, concurrence, tot
   const key = randomUUID();
   const values = paymentValues(patient.id, { date: '2021-11-03', amountCents: 12345 });
   const row = await payments.create(session.token, session.csrfToken, values, key);
-  const deposited = await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+  const deposited = await markPayment(session.token, session.csrfToken, row.id, {
     version: 1,
     bankDeposited: true,
   });
@@ -1967,7 +1980,7 @@ test('annulation globale : tous les dépôts du type, versions, audit minimal et
       randomUUID(),
     );
     created.push(
-      await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+      await markPayment(session.token, session.csrfToken, row.id, {
         bankDeposited: true,
         version: row.version,
       }),
@@ -2042,7 +2055,7 @@ test('annulation globale : conflit sur ajout ou version, rollback du second audi
     paymentValues(patient.id, { method: 'cash' }),
     randomUUID(),
   );
-  await payments.setBankDeposit(session.token, session.csrfToken, first.id, {
+  await markPayment(session.token, session.csrfToken, first.id, {
     bankDeposited: true,
     version: 1,
   });
@@ -2053,7 +2066,7 @@ test('annulation globale : conflit sur ajout ou version, rollback du second audi
     paymentValues(patient.id, { method: 'cash' }),
     randomUUID(),
   );
-  await payments.setBankDeposit(session.token, session.csrfToken, next.id, {
+  await markPayment(session.token, session.csrfToken, next.id, {
     bankDeposited: true,
     version: 1,
   });
@@ -2260,12 +2273,17 @@ test('permissions distinctes : dépôt, annulation, historique et réimpression 
   );
   for (const user of [reader, history, reprinter, canceller])
     await expect(
-      payments.setBankDeposit(user.session.token, user.session.csrfToken, row.id, {
-        bankDeposited: true,
-        version: 1,
-      }),
+      payments.depositBatch(
+        user.session.token,
+        user.session.csrfToken,
+        {
+          method: 'cash',
+          items: [{ id: row.id, version: 1 }],
+        },
+        randomUUID(),
+      ),
     ).rejects.toMatchObject({ status: 403 });
-  await payments.setBankDeposit(depositor.session.token, depositor.session.csrfToken, row.id, {
+  await markPayment(depositor.session.token, depositor.session.csrfToken, row.id, {
     bankDeposited: true,
     version: 1,
   });

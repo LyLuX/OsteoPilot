@@ -2,7 +2,7 @@ import { z, uuid, text, paging } from '../../core/validation.js';
 import { paymentMethodCodes } from '../administration/payment-methods.js';
 export const depositMethods = ['cash', 'cheque'];
 export const paymentDepositInput = z
-  .object({ bankDeposited: z.boolean(), version: z.number().int().min(1).max(4294967294) })
+  .object({ bankDeposited: z.literal(false), version: z.number().int().min(1).max(4294967294) })
   .strict();
 export const paymentDeleteInput = z
   .object({ version: z.number().int().min(1).max(4294967295), confirmed: z.literal(true) })

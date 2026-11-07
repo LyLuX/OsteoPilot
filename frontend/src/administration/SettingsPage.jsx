@@ -172,9 +172,6 @@ function CalendarSettingsForm({ settings }) {
         <option value="month">Mois</option>
         <option value="year">Année</option>
       </FormControl>
-      <p className="muted mt-2 mb-0">
-        Enregistrement automatique. Cette vue sera utilisée à l’ouverture du dashboard.
-      </p>
     </fieldset>
   );
 }

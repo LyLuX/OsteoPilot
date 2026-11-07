@@ -2,6 +2,26 @@
 
 ## Non publié
 
+## 0.12.1 - 2026-11-07
+
+- [PATCH] Tout nouveau dépôt passe exclusivement par Gestion paiements et son
+  bordereau archivé. La fiche patient affiche les statuts et conserve seulement
+  l’annulation autorisée ; le composant partagé ne propose plus de dépôt et
+  l’ancien marquage individuel est également refusé côté serveur.
+
+- [PATCH] Les formulaires de tarifs du paramétrage sont plus compacts, affichés
+  deux par ligne sur grand écran et sur une colonne sur mobile. Un dernier
+  formulaire isolé reste centré, y compris celui d’ajout d’un tarif.
+
+- [PATCH] La hauteur minimale des libellés de cases à cocher check-label passe
+  à 30 px pour une présentation plus compacte.
+
+- [PATCH] Intégration de l’ajustement du propriétaire : retrait de la phrase
+  d’aide sur l’enregistrement automatique de la vue du calendrier.
+
+- [PATCH] Dans la page Déposer, les virements affichent une coche verte dans la
+  colonne Déposer, avec le libellé accessible Virement sur le compte.
+
 ## 0.12.0 - 2026-11-07
 
 - [MINOR] Les bordereaux archivés à la validation portent le statut Original.

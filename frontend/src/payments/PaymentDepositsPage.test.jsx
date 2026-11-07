@@ -175,6 +175,9 @@ test('carte, virement et paiement déjà déposé non sélectionnables ; désél
   expect(within(table).getByRole('img', { name: 'Paiement déposé' })).toBeInTheDocument();
   const transferRow = within(table).getAllByRole('row').at(-1);
   expect(within(transferRow).queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(within(transferRow).getByRole('img', { name: 'Virement sur le compte' })).toHaveClass(
+    'payment-deposited-check',
+  );
   expect(transferRow).toHaveTextContent('Sur le compte');
   for (const checkbox of checkboxes.slice(1)) expect(checkbox).toBeDisabled();
   const cash = screen.getByRole('checkbox', { name: 'Paiements en espèces' });

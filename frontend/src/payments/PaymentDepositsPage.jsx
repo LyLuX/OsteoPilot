@@ -252,11 +252,16 @@ export default function PaymentDepositsPage() {
                   {resource.data.items.map((payment) => (
                     <tr key={payment.id}>
                       <td data-label="Déposer">
-                        {['cash', 'cheque'].includes(payment.method) && payment.bankDeposited ? (
+                        {payment.method === 'transfer' ||
+                        (['cash', 'cheque'].includes(payment.method) && payment.bankDeposited) ? (
                           <span
                             className="payment-deposited-check"
                             role="img"
-                            aria-label="Paiement déposé"
+                            aria-label={
+                              payment.method === 'transfer'
+                                ? 'Virement sur le compte'
+                                : 'Paiement déposé'
+                            }
                           >
                             <svg
                               width="22"
@@ -272,7 +277,7 @@ export default function PaymentDepositsPage() {
                               <path d="m5 12 4 4L19 6" />
                             </svg>
                           </span>
-                        ) : payment.method === 'transfer' ? null : (
+                        ) : (
                           <label className="payment-selection-option">
                             <input
                               type="checkbox"

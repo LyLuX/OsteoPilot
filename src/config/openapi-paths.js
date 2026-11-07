@@ -210,7 +210,7 @@ for (const route of routes) {
     ...(route.action === 'paymentBankDeposit'
       ? {
           description:
-            'payments.read est requis. bankDeposited=true exige payments.deposit ; bankDeposited=false exige payments.deposit.cancel, y compris si la valeur est déjà appliquée. Les deux droits sont indépendants et contrôlés dans le service avant toute lecture/mutation du paiement.',
+            'Annulation uniquement : bankDeposited doit valoir false (true est refusé avec 422). payments.read et payments.deposit.cancel sont requis, même pour une annulation sans effet. Tout nouveau dépôt passe par POST /payments/deposits, avec bordereau et archivage atomique.',
         }
       : {}),
     ...(route.action === 'paymentsList'

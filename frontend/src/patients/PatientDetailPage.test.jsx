@@ -127,7 +127,7 @@ test('rechargement en erreur : aucun ancien total visible, nouvelle tentative pr
 });
 
 test.each([
-  ['payments.deposit', 'Déposer', 'Annuler le dépôt'],
+  ['payments.deposit', null, 'Annuler le dépôt'],
   ['payments.deposit.cancel', 'Annuler le dépôt', 'Déposer'],
 ])(
   'fiche patient : permission %s distincte pour chaque sens de changement du dépôt',
@@ -150,7 +150,9 @@ test.each([
     });
     show();
     fireEvent.click(await screen.findByRole('tab', { name: 'Paiements' }));
-    expect(await screen.findByRole('button', { name: visible })).toBeInTheDocument();
+    await screen.findByRole('list', { name: 'Paiements du patient' });
+    if (visible) expect(screen.getByRole('button', { name: visible })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Déposer' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: absent })).not.toBeInTheDocument();
   },
 );
