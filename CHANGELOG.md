@@ -2,6 +2,22 @@
 
 ## Non publié
 
+## 0.12.0 - 2026-11-07
+
+- [MINOR] Les bordereaux archivés à la validation portent le statut Original.
+  Une corbeille permet de supprimer après confirmation les seuls Reconstitués ;
+  le serveur protège les Originaux et conserve les paiements, avec audit atomique.
+
+- [MINOR] Les droits de dépôt, d’annulation, d’historique, de réimpression et de
+  suppression de bordereau sont séparés, dans les services et l’interface. La
+  migration 010 attribue les nouveaux droits au rôle ADMIN uniquement ; les rôles
+  personnalisés restent à configurer explicitement. Les créations et suppressions
+  de paiements conservent leurs permissions propres.
+
+- [PATCH] L’historique des dépôts dispose d’une colonne Actions dédiée à la
+  réimpression, avec une icône d’imprimante, une infobulle et un libellé accessible.
+  Le statut du document est affiché dans une colonne distincte.
+
 ## 0.11.0 - 2026-11-07
 
 - [PATCH] Intégration des ajustements du propriétaire : retrait du lien

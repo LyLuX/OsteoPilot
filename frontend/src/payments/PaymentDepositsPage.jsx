@@ -40,7 +40,10 @@ export default function PaymentDepositsPage() {
   const cancellable = useResource(
     '/payments/deposits/cancellable',
     { method: selection.method },
-    can('payments.read') && can('payments.deposit') && Boolean(selection.method) && !printData,
+    can('payments.read') &&
+      can('payments.deposit.cancel') &&
+      Boolean(selection.method) &&
+      !printData,
   );
   const canCancel =
     cancellable.current &&
@@ -89,6 +92,8 @@ export default function PaymentDepositsPage() {
       <PaymentDepositPrintPage
         data={printData}
         readOnly={Boolean(printData.archived)}
+        canReprint={can('payments.deposits.reprint')}
+        canDeposit={can('payments.deposit')}
         backLabel={printData.archived ? 'Retour à l’historique' : 'Retour aux paiements'}
         onBack={() => {
           setPrintData(null);
@@ -121,7 +126,10 @@ export default function PaymentDepositsPage() {
                   <input
                     type="checkbox"
                     className="form-check-input"
-                    disabled={!can('payments.deposit') || !methodAvailable(method)}
+                    disabled={
+                      !(can('payments.deposit') || can('payments.deposit.cancel')) ||
+                      !methodAvailable(method)
+                    }
                     checked={
                       selection.method === method && selection.all && selection.excluded.size === 0
                     }
@@ -146,67 +154,69 @@ export default function PaymentDepositsPage() {
             </div>
             <div className="payment-selection-actions">
               {can('payments.deposit') && (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-outline-success"
-                    disabled={
-                      !selection.method ||
-                      !(resource.data?.pendingDeposits?.[selection.method] > 0) ||
-                      (!selection.all && selection.ids.size === 0)
-                    }
-                    onClick={async () => {
-                      if (preparing.current) return;
-                      preparing.current = true;
-                      try {
-                        const result = await task.run(async () => {
-                          try {
-                            return await api.post('/payments/deposits/preview', {
-                              method: selection.method,
-                              all: selection.all,
-                              ids: [...selection.ids],
-                              excluded: [...selection.excluded],
-                            });
-                          } catch (error) {
-                            if (error.response?.status === 409) {
-                              setSelection(emptySelection());
-                              resource.reload();
-                            }
-                            throw error;
+                <button
+                  type="button"
+                  className="btn btn-outline-success"
+                  disabled={
+                    !selection.method ||
+                    !(resource.data?.pendingDeposits?.[selection.method] > 0) ||
+                    (!selection.all && selection.ids.size === 0)
+                  }
+                  onClick={async () => {
+                    if (preparing.current) return;
+                    preparing.current = true;
+                    try {
+                      const result = await task.run(async () => {
+                        try {
+                          return await api.post('/payments/deposits/preview', {
+                            method: selection.method,
+                            all: selection.all,
+                            ids: [...selection.ids],
+                            excluded: [...selection.excluded],
+                          });
+                        } catch (error) {
+                          if (error.response?.status === 409) {
+                            setSelection(emptySelection());
+                            resource.reload();
                           }
-                        });
-                        if (result) setPrintData(result);
-                      } finally {
-                        preparing.current = false;
-                      }
-                    }}
-                  >
-                    Déposer
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-warning"
-                    disabled={!canCancel}
-                    onClick={() => {
-                      if (!canCancel) return;
-                      setCancelRequest({
-                        method: selection.method,
-                        items: cancellable.data.items.map(({ id, version }) => ({ id, version })),
-                        key: createRequestId(),
+                          throw error;
+                        }
                       });
-                    }}
-                  >
-                    Annuler les dépôts
-                  </button>
-                </>
+                      if (result) setPrintData(result);
+                    } finally {
+                      preparing.current = false;
+                    }
+                  }}
+                >
+                  Déposer
+                </button>
               )}
-              <button
-                type="button"
-                className="btn btn-outline-info"
-                onClick={() => setHistoryOpen(true)}
-              >
-                Historique des dépôts
-              </button>
+              {can('payments.deposit.cancel') && (
+                <button
+                  type="button"
+                  className="btn btn-outline-warning"
+                  disabled={!canCancel}
+                  onClick={() => {
+                    if (!canCancel) return;
+                    setCancelRequest({
+                      method: selection.method,
+                      items: cancellable.data.items.map(({ id, version }) => ({ id, version })),
+                      key: createRequestId(),
+                    });
+                  }}
+                >
+                  Annuler les dépôts
+                </button>
+              )}
+              {can('payments.deposits.read') && (
+                <button
+                  type="button"
+                  className="btn btn-outline-info"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  Historique des dépôts
+                </button>
+              )}
             </div>
           </div>
         </fieldset>
@@ -231,7 +241,7 @@ export default function PaymentDepositsPage() {
                     <th scope="col">Type de paiement</th>
                     <th scope="col">Montant</th>
                     <th scope="col">Dépôt</th>
-                    {(can('payments.delete') || can('payments.deposit')) && (
+                    {(can('payments.delete') || can('payments.deposit.cancel')) && (
                       <th scope="col" className="payment-actions-column">
                         Actions
                       </th>
@@ -304,12 +314,12 @@ export default function PaymentDepositsPage() {
                           <PaymentDepositBadge payment={payment} />
                         )}
                       </td>
-                      {(can('payments.delete') || can('payments.deposit')) && (
+                      {(can('payments.delete') || can('payments.deposit.cancel')) && (
                         <td data-label="Actions">
                           {['cash', 'cheque'].includes(payment.method) && payment.bankDeposited ? (
                             <PaymentDepositControl
                               payment={payment}
-                              canUpdate={can('payments.deposit')}
+                              canUpdate={can('payments.deposit.cancel')}
                               compact
                               disabled={busy}
                               onBusyChange={setBusy}

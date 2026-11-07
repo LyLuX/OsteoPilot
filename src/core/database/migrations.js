@@ -45,6 +45,11 @@ import {
   up as slipsUp,
   down as slipsDown,
 } from '../../../migrations/202611070009-deposit-slips.js';
+import {
+  migrationName as depositPermissionsName,
+  up as depositPermissionsUp,
+  down as depositPermissionsDown,
+} from '../../../migrations/202611070010-deposit-action-permissions.js';
 const migrations = [
   { name: initialName, up: initialUp, down: initialDown },
   { name: paymentsName, up: paymentsUp, down: paymentsDown },
@@ -55,6 +60,7 @@ const migrations = [
   { name: tariffsName, up: tariffsUp, down: tariffsDown },
   { name: chequeNumberName, up: chequeNumberUp, down: chequeNumberDown },
   { name: slipsName, up: slipsUp, down: slipsDown },
+  { name: depositPermissionsName, up: depositPermissionsUp, down: depositPermissionsDown },
 ];
 const knownHistory = (history) =>
   history.length <= migrations.length &&

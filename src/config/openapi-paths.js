@@ -55,6 +55,7 @@ export function responseSchema(action) {
   if (action === 'patientPayments') return ref('PatientPayments');
   if (action === 'paymentDepositsCancellable') return ref('CancellableDeposits');
   if (action === 'paymentDepositsCancel') return ref('CancelledDeposits');
+  if (action === 'paymentDepositSlipDelete') return ref('DepositSlipDeleted');
   if (action === 'paymentDepositHistory') return paginated('DepositSlipSummary');
   if (action === 'paymentDepositSlip') return ref('DepositSlip');
   if (action === 'paymentDepositPreview') return ref('PaymentDepositPreview');
@@ -198,6 +199,20 @@ for (const route of routes) {
     operationId: route.action,
     summary: route.summary,
     'x-permission': route.permission || null,
+    ...(['paymentDepositHistory', 'paymentDepositSlip', 'paymentDepositSlipDelete'].includes(
+      route.action,
+    )
+      ? {
+          description:
+            'Droit payments.read requis. Historique : payments.deposits.read ; détail pour réimpression : payments.deposits.read et payments.deposits.reprint ; suppression : payments.deposits.read et payments.deposits.delete. Seuls les documents reconstructed=true peuvent être supprimés, avec confirmed=true, origine et CSRF. Les documents originaux sont refusés avec 409 ; les paiements restent inchangés.',
+        }
+      : {}),
+    ...(route.action === 'paymentBankDeposit'
+      ? {
+          description:
+            'payments.read est requis. bankDeposited=true exige payments.deposit ; bankDeposited=false exige payments.deposit.cancel, y compris si la valeur est déjà appliquée. Les deux droits sont indépendants et contrôlés dans le service avant toute lecture/mutation du paiement.',
+        }
+      : {}),
     ...(route.action === 'paymentsList'
       ? {
           description:

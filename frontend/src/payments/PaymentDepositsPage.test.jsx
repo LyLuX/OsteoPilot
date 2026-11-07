@@ -288,9 +288,9 @@ test('Déposer ouvre le bordereau ; impression, coche verte puis annulation remp
   print.mockRestore();
 });
 
-test('paiement déposé : annulation soumise au droit dépôt, suppression toujours absente', async () => {
+test('paiement déposé : annulation soumise au droit d’annulation, suppression toujours absente', async () => {
   records = [{ ...records[0], bankDeposited: true }];
-  mocks.can.mockImplementation((permission) => permission !== 'payments.deposit');
+  mocks.can.mockImplementation((permission) => permission !== 'payments.deposit.cancel');
   show();
   const table = await screen.findByRole('table');
   expect(within(table).getByRole('img', { name: 'Paiement déposé' })).toBeInTheDocument();
@@ -516,8 +516,10 @@ test.each([
   },
 );
 
-test('historique accessible sans sélection et avec le seul droit lecture, retour aux paiements', async () => {
-  mocks.can.mockImplementation((permission) => permission === 'payments.read');
+test('historique accessible sans sélection et avec le droit propre à l’historique, retour aux paiements', async () => {
+  mocks.can.mockImplementation((permission) =>
+    ['payments.read', 'payments.deposits.read'].includes(permission),
+  );
   const get = mocks.get.getMockImplementation();
   mocks.get.mockImplementation((path, query) =>
     path === '/payments/deposits/history'
@@ -531,4 +533,33 @@ test('historique accessible sans sélection et avec le seul droit lecture, retou
   fireEvent.click(screen.getByRole('button', { name: 'Retour aux paiements' }));
   await screen.findByRole('table', { name: 'Tous les paiements' });
   expect(mocks.post).not.toHaveBeenCalled();
+});
+
+test('déposer et annuler sont commandés par des permissions distinctes', async () => {
+  mocks.can.mockImplementation((permission) =>
+    ['payments.read', 'payments.deposit.cancel'].includes(permission),
+  );
+  records[0].bankDeposited = true;
+  show();
+  await screen.findByRole('table');
+  expect(screen.queryByRole('button', { name: 'Déposer' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Historique des dépôts' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Annuler le dépôt' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Annuler les dépôts' })).toBeEnabled(),
+  );
+});
+test('déposant sans annulation : commande d’annulation absente, aucun chargement des dépôts annulables', async () => {
+  mocks.can.mockImplementation((permission) =>
+    ['payments.read', 'payments.deposit'].includes(permission),
+  );
+  records[0].bankDeposited = true;
+  show();
+  await screen.findByRole('table');
+  expect(screen.getByRole('button', { name: 'Déposer' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Annuler les dépôts' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Annuler le dépôt' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  expect(mocks.get).not.toHaveBeenCalledWith('/payments/deposits/cancellable', expect.anything());
 });

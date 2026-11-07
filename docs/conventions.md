@@ -173,7 +173,7 @@ avec page et limit, sans filtre de date. La lecture exige payments.read. Le tabl
 réutilise la pagination commune et affiche uniquement les statuts dans la colonne
 Dépôt, sans boutons : À déposer ou Déposé pour les espèces et chèques, Sur le compte
 pour les virements et Sans objet pour la carte. Les commandes de dépôt et d’annulation
-des autres écrans restent soumises à payments.deposit. Le panneau du calendrier
+des autres écrans exigent respectivement payments.deposit et payments.deposit.cancel. Le panneau du calendrier
 présente le moyen et le badge de statut dans deux spans enfants d’une même div,
 avec le badge aligné à droite.
 La suppression avec confirmation reste disponible dans la fiche patient et dans
@@ -201,7 +201,7 @@ navigateur. L’impression native avant validation affiche uniquement une consig
 Le navigateur ne confirme pas la sortie papier : annuler sa boîte d’impression
 ne revient pas sur le dépôt ; l’utilisateur peut annuler ce dernier dans la liste.
 Les paiements déposés affichent une coche dans le vert du thème et une flèche
-d’annulation (payments.deposit), en remplacement de la case et de la corbeille.
+d’annulation (payments.deposit.cancel), en remplacement de la case et de la corbeille.
 La réimpression du même aperçu validé ne réécrit pas les dépôts.
 À l’impression, masquer tous les enfants de body sauf le portail du bordereau,
 y compris les notifications rendues hors de root. Regrouper en bas le nombre
@@ -226,7 +226,7 @@ Les nouveaux paiements et l’historique démarrent « À déposer » ; ce statu
 à vérifier pour les dépôts réalisés avant l’ajout du suivi. Carte et virement
 renvoient bankDeposited: null. Le statut ne change jamais le montant encaissé,
 la date du paiement ni les totaux du calendrier.
-La permission payments.deposit autorise le changement et son annulation,
+La permission payments.deposit autorise le dépôt ; payments.deposit.cancel autorise son annulation,
 avec contrôle de version, verrou transactionnel et audit atomique minimal.
 Un état inchangé ne crée pas d’audit. En conflit (409), recharger la liste.
 Les rôles personnalisés nécessitent une attribution explicite de ce nouveau droit.
@@ -328,7 +328,7 @@ du formulaire ; la liste visible expose les rôles combobox, listbox et option.
 
 ## Annulation groupée des dépôts
 
-La page Déposer propose Annuler les dépôts à côté de Déposer, selon payments.deposit.
+La page Déposer propose Annuler les dépôts à côté de Déposer, selon payments.deposit.cancel.
 Le type sélectionné définit la portée : tous les dépôts de ce type, toutes pages,
 indépendamment des cases individuelles de paiements à déposer. GET
 /payments/deposits/cancellable?method=cash|cheque expose uniquement les UUID et
@@ -337,7 +337,7 @@ Un tableau vide désactive le bouton. Le chargement, une erreur ou l’absence d
 type le désactivent également. La confirmation précise type, nombre et portée.
 POST /payments/deposits/cancel exige confirmed=true, method, les UUID et versions
 exactes et Idempotency-Key. Les deux services exigent payments.read et
-payments.deposit ; la mutation exige aussi origine et CSRF. Le verrou commun
+payments.deposit.cancel ; la mutation exige aussi origine et CSRF. Le verrou commun
 sérialise les écritures, le service relit tous les dépôts du type et refuse 409
 si l’ensemble ou les versions ont changé ; aucun dépôt entraîne 422. Chaque
 dépôt annulé incrémente sa version et reçoit un audit minimal unmark dans le même
@@ -354,7 +354,8 @@ Aucune donnée personnelle dans les audits ; aucun lien de suppression en cascad
 avec Patients ou Payments. Une annulation ne retire pas l’archive.
 GET /payments/deposits/history est paginé (5 éléments côté interface, 100 maximum
 côté serveur), tri createdAt puis UUID décroissants ; le détail /:id est protégé
-par payments.read. La liste ne projette pas les lignes nominatives du document.
+par payments.read, payments.deposits.read et payments.deposits.reprint. La liste
+exige payments.read et payments.deposits.read et ne projette pas les lignes nominatives du document.
 La réimpression lit le document archivé et ne poste aucun dépôt.
 La première impression utilise le document retourné par le commit serveur.
 La migration 009 reprend les anciennes réponses idempotentes ids/totalCents si
@@ -363,3 +364,37 @@ Leur identité au moment de l’impression initiale est inconnue : reconstructed
 est visible à l’écran et sur le bordereau. Les lots incomplets ne sont pas inventés.
 Migration additive, reprise du DDL et des lots sans doublon ; down supprime les
 archives, jamais les paiements. Une sauvegarde est nécessaire avant tout down utile.
+
+## Permissions des actions de paiement
+
+Chaque commande est protégée dans son service et dans l’interface. Les routes
+appliquent le droit principal ; les prérequis cumulés sont contrôlés par le service.
+La migration 010 ajoute les nouveaux droits au seul rôle système ADMIN. Les rôles
+personnalisés doivent recevoir explicitement les actions voulues via Permissions.
+
+| Action                                             | Permission propre         | Prérequis                             |
+| -------------------------------------------------- | ------------------------- | ------------------------------------- |
+| Lire les paiements et totaux                       | payments.read             | —                                     |
+| Créer un paiement, dont numéro de chèque           | payments.create           | —                                     |
+| Supprimer un paiement                              | payments.delete           | —                                     |
+| Déposer, préparer et imprimer le premier bordereau | payments.deposit          | payments.read                         |
+| Annuler un dépôt individuel ou tous ceux d’un type | payments.deposit.cancel   | payments.read                         |
+| Consulter l’historique des bordereaux              | payments.deposits.read    | payments.read                         |
+| Lire le détail et réimprimer un bordereau          | payments.deposits.reprint | payments.read, payments.deposits.read |
+| Supprimer un bordereau reconstitué                 | payments.deposits.delete  | payments.read, payments.deposits.read |
+
+Le PATCH bank-deposit vérifie le droit correspondant à la valeur demandée, avant
+même de traiter un changement sans effet. Les boutons Déposer et Annuler sont
+indépendants ; un utilisateur limité à l’annulation peut choisir le type mais
+ne peut pas cocher les paiements à déposer. Consulter l’historique n’accorde ni
+réimpression ni suppression. Le bouton de première impression effectue le dépôt ;
+sa réimpression ultérieure exige le droit spécifique. Le navigateur peut naturellement
+imprimer des informations déjà reçues : les droits protègent l’accès serveur et
+les commandes applicatives, pas les fonctions du navigateur.
+
+Les statuts d’origine des documents sont Original et Reconstitué. Un Original est
+immuable et non supprimable, même avec tous les droits. Le DELETE du reconstitué
+exige confirmation, origine et CSRF ; verrou de ligne et audit minimal dans la
+même transaction. La suppression du document ne supprime ni ne dépose ni n’annule
+aucun paiement. Une erreur d’audit conserve le document. Un UUID déjà supprimé
+renvoie 404. La migration 009 n’est pas rejouée lors d’une suppression.

@@ -125,3 +125,32 @@ test('rechargement en erreur : aucun ancien total visible, nouvelle tentative pr
   await screen.findByRole('button', { name: 'Réessayer' });
   expect(screen.getByRole('tabpanel', { name: 'Paiements' })).not.toHaveTextContent('Total :');
 });
+
+test.each([
+  ['payments.deposit', 'Déposer', 'Annuler le dépôt'],
+  ['payments.deposit.cancel', 'Annuler le dépôt', 'Déposer'],
+])(
+  'fiche patient : permission %s distincte pour chaque sens de changement du dépôt',
+  async (permission, visible, absent) => {
+    mocks.can.mockImplementation((name) =>
+      ['patients.read', 'payments.read', permission].includes(name),
+    );
+    const get = mocks.get.getMockImplementation();
+    mocks.get.mockImplementation(async (path) => {
+      const result = await get(path);
+      return path.endsWith('/payments')
+        ? {
+            ...result,
+            items: [
+              { ...payment, id: 'pending', method: 'cash', bankDeposited: false },
+              { ...payment, id: 'deposited', method: 'cash', bankDeposited: true },
+            ],
+          }
+        : result;
+    });
+    show();
+    fireEvent.click(await screen.findByRole('tab', { name: 'Paiements' }));
+    expect(await screen.findByRole('button', { name: visible })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: absent })).not.toBeInTheDocument();
+  },
+);

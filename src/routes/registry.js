@@ -8,6 +8,7 @@ import {
   paymentDepositSelection,
   paymentDepositBatch,
   depositHistoryQuery,
+  depositSlipDeleteInput,
   paymentDepositCancelQuery,
   paymentDepositCancelInput,
   paymentSummaryQuery,
@@ -36,7 +37,7 @@ export const routes = [
   {
     method: 'get',
     path: '/payments/deposits/history',
-    permission: 'payments.read',
+    permission: 'payments.deposits.read',
     query: depositHistoryQuery,
     action: 'paymentDepositHistory',
     summary: 'Lister les bordereaux archivés, du plus récent au plus ancien, avec pagination',
@@ -44,14 +45,23 @@ export const routes = [
   {
     method: 'get',
     path: '/payments/deposits/history/:id',
-    permission: 'payments.read',
+    permission: 'payments.deposits.reprint',
     action: 'paymentDepositSlip',
     summary: 'Lire un bordereau archivé pour réimpression sans modifier les paiements',
   },
   {
+    method: 'delete',
+    path: '/payments/deposits/history/:id',
+    permission: 'payments.deposits.delete',
+    body: depositSlipDeleteInput,
+    action: 'paymentDepositSlipDelete',
+    summary:
+      'Supprimer uniquement un bordereau reconstitué après confirmation ; origine, CSRF et audit atomique',
+  },
+  {
     method: 'get',
     path: '/payments/deposits/cancellable',
-    permission: 'payments.deposit',
+    permission: 'payments.deposit.cancel',
     query: paymentDepositCancelQuery,
     action: 'paymentDepositsCancellable',
     summary: 'Lire les UUID et versions de tous les dépôts du type choisi ; payments.read requis',
@@ -59,7 +69,7 @@ export const routes = [
   {
     method: 'post',
     path: '/payments/deposits/cancel',
-    permission: 'payments.deposit',
+    permission: 'payments.deposit.cancel',
     body: paymentDepositCancelInput,
     idempotent: true,
     action: 'paymentDepositsCancel',
@@ -145,7 +155,7 @@ export const routes = [
   {
     method: 'patch',
     path: '/payments/:id/bank-deposit',
-    permission: 'payments.deposit',
+    permission: 'payments.read',
     body: paymentDepositInput,
     action: 'paymentBankDeposit',
     summary: 'Marquer ou annuler le dépôt en banque d’un paiement espèces ou chèque, avec version',

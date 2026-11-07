@@ -40,7 +40,7 @@ export const components = {
       additionalProperties: false,
       required: ['method', 'items'],
       description:
-        'Tous les dépôts espèces ou chèques, toutes pages, sans données personnelles. 5 000 maximum, erreur 422 au-delà sans tronquage. Tableau vide si aucun dépôt. Droits payments.read et payments.deposit.',
+        'Tous les dépôts espèces ou chèques, toutes pages, sans données personnelles. 5 000 maximum, erreur 422 au-delà sans tronquage. Tableau vide si aucun dépôt. Droits payments.read et payments.deposit.cancel.',
       properties: {
         method: { type: 'string', enum: ['cash', 'cheque'] },
         items: {
@@ -63,7 +63,7 @@ export const components = {
       additionalProperties: false,
       required: ['count'],
       description:
-        'Annulation atomique de tous les dépôts du type confirmé. confirmed=true et Idempotency-Key requis. Versions et ensemble exact revérifiés sous verrou ; ajout, retrait ou modification d’un dépôt entraîne 409. Aucun dépôt entraîne 422. Montants et dates préservés, audit minimal par paiement et reprise idempotente.',
+        'Annulation atomique de tous les dépôts du type confirmé, sous payments.read et payments.deposit.cancel. confirmed=true et Idempotency-Key requis. Versions et ensemble exact revérifiés sous verrou ; ajout, retrait ou modification d’un dépôt entraîne 409. Aucun dépôt entraîne 422. Montants et dates préservés, audit minimal par paiement et reprise idempotente.',
       properties: { count: { type: 'integer', minimum: 1, maximum: 5000 } },
     },
     PaymentDepositPreview: {
@@ -131,6 +131,14 @@ export const components = {
         totalCents: { type: 'integer', minimum: 1 },
       },
     },
+    DepositSlipDeleted: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id'],
+      description:
+        'Suppression définitive d’un bordereau reconstitué uniquement. Original refusé (409), UUID absent (404). Confirmation, origine, CSRF, droits de lecture et payments.deposits.delete obligatoires. Audit minimal et suppression dans la même transaction ; aucun effet sur les paiements.',
+      properties: { id: { type: 'string', format: 'uuid' } },
+    },
     DepositSlipSummary: {
       type: 'object',
       required: [
@@ -190,7 +198,7 @@ export const components = {
         },
       ],
       description:
-        'Document immuable archivé au dépôt : nom du cabinet, identités minimales, dates, numéros de chèques et montants. Lecture et réimpression sans mutation sous payments.read, même après annulation ou suppression d’un paiement.',
+        'Document immuable archivé au dépôt : nom du cabinet, identités minimales, dates, numéros de chèques et montants. Lecture de l’historique sous payments.read et payments.deposits.read ; le détail pour réimpression exige aussi payments.deposits.reprint. Les documents originaux ne sont pas supprimables ; les reconstitués sont supprimables sous payments.deposits.delete sans modifier les paiements.',
     },
     Payments: {
       ...paginated('Payment'),

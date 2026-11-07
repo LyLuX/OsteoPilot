@@ -12,6 +12,7 @@ import { PaymentRepository } from './payment.repository.js';
 import {
   paymentInput,
   depositHistoryQuery,
+  depositSlipDeleteInput,
   paymentDepositCancelQuery,
   paymentDepositCancelInput,
   paymentDepositSelection,
@@ -39,6 +40,7 @@ export class PaymentService {
     return this.db.sequelize.transaction(async (tx) => {
       const context = await this.auth.authenticate(token, tx);
       this.auth.permit(context, 'payments.read');
+      this.auth.permit(context, 'payments.deposits.read');
       return pageResult(await this.repository.slips(query, tx), query, slipSummary);
     });
   }
@@ -47,9 +49,34 @@ export class PaymentService {
     return this.db.sequelize.transaction(async (tx) => {
       const context = await this.auth.authenticate(token, tx);
       this.auth.permit(context, 'payments.read');
+      this.auth.permit(context, 'payments.deposits.read');
+      this.auth.permit(context, 'payments.deposits.reprint');
       const row = await this.repository.slip(id, tx);
       assert(row, 'Bordereau introuvable.', 404);
       return publicSlip(row);
+    });
+  }
+  async deleteDepositSlip(token, csrf, id, values) {
+    id = parse(uuid, id);
+    parse(depositSlipDeleteInput, values);
+    return this.auth.write(token, csrf, 'payments.deposits.delete', async (ctx, tx) => {
+      this.auth.permit(ctx, 'payments.read');
+      this.auth.permit(ctx, 'payments.deposits.read');
+      const row = await this.repository.slip(id, tx, true);
+      assert(row, 'Bordereau introuvable.', 404);
+      assert(row.reconstructed, 'Seuls les bordereaux reconstitués peuvent être supprimés.', 409);
+      await this.repository.removeSlip(row, tx);
+      await recordAudit(
+        this.db,
+        {
+          actorId: ctx.user.id,
+          action: 'payments.deposit-slip.delete',
+          entity: 'deposit-slip',
+          entityId: id,
+        },
+        tx,
+      );
+      return { id };
     });
   }
   async cancellableDeposits(token, query) {
@@ -57,7 +84,7 @@ export class PaymentService {
     return this.db.sequelize.transaction(async (tx) => {
       const context = await this.auth.authenticate(token, tx);
       this.auth.permit(context, 'payments.read');
-      this.auth.permit(context, 'payments.deposit');
+      this.auth.permit(context, 'payments.deposit.cancel');
       const rows = await this.repository.depositedByMethod(method, tx, depositBatchLimit + 1);
       assert(
         rows.length <= depositBatchLimit,
@@ -75,7 +102,7 @@ export class PaymentService {
       'Clé Idempotency-Key requise (16 à 100 caractères).',
       422,
     );
-    return this.auth.write(token, csrf, 'payments.deposit', async (ctx, tx) => {
+    return this.auth.write(token, csrf, 'payments.deposit.cancel', async (ctx, tx) => {
       this.auth.permit(ctx, 'payments.read');
       const keyHash = digest(key);
       const requestHash = digest(JSON.stringify({ operation: 'payments.cancel-deposits', input }));
@@ -366,7 +393,9 @@ export class PaymentService {
   async setBankDeposit(token, csrf, id, values) {
     id = parse(uuid, id);
     const input = parse(paymentDepositInput, values);
-    return this.auth.write(token, csrf, 'payments.deposit', async (ctx, tx) => {
+    const permission = input.bankDeposited ? 'payments.deposit' : 'payments.deposit.cancel';
+    return this.auth.write(token, csrf, permission, async (ctx, tx) => {
+      this.auth.permit(ctx, 'payments.read');
       const row = await this.repository.findForUpdate(id, tx);
       assert(row, 'Paiement introuvable.', 404);
       assert(

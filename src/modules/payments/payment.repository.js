@@ -39,7 +39,7 @@ export class PaymentRepository {
       transaction,
     });
   }
-  slip(id, transaction) {
+  slip(id, transaction, lock = false) {
     return this.models.DepositSlips.findByPk(id, {
       attributes: [
         'id',
@@ -52,7 +52,12 @@ export class PaymentRepository {
         'items',
       ],
       transaction,
+      ...(lock ? { lock: transaction.LOCK.UPDATE } : {}),
     });
+  }
+  removeSlip(row, transaction) {
+    requireTransaction(transaction);
+    return row.destroy({ transaction });
   }
   slipPayments(ids, transaction) {
     return this.models.Payments.findAll({

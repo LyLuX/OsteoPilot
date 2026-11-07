@@ -37,7 +37,7 @@ afterEach(() => vi.restoreAllMocks());
 const show = (props = {}) =>
   render(
     <NotificationProvider>
-      <PaymentDepositPrintPage data={data} onBack={vi.fn()} {...props} />
+      <PaymentDepositPrintPage data={data} onBack={vi.fn()} canDeposit canReprint {...props} />
     </NotificationProvider>,
   );
 
@@ -188,4 +188,17 @@ test('la première impression utilise le document archivé renvoyé par le serve
   await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
   expect(document.querySelector('.deposit-printable')).toHaveTextContent('Cabinet au dépôt');
   expect(document.querySelector('.deposit-printable')).toHaveTextContent('Archive Nom validé');
+});
+
+test('sans droit de réimpression, seule la première impression du dépôt reste possible', async () => {
+  show({ canReprint: false });
+  fireEvent.click(screen.getByRole('button', { name: 'Imprimer' }));
+  await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
+  expect(screen.queryByRole('button', { name: 'Réimprimer' })).not.toBeInTheDocument();
+});
+test('document historique sans droit de réimpression : aucune commande d’impression', () => {
+  show({ readOnly: true, canReprint: false });
+  expect(screen.queryByRole('button', { name: 'Réimprimer' })).not.toBeInTheDocument();
+  expect(mocks.post).not.toHaveBeenCalled();
+  expect(window.print).not.toHaveBeenCalled();
 });

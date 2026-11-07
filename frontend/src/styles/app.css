@@ -1637,3 +1637,28 @@ dialog::backdrop {
   width: 44px;
   min-height: 44px;
 }
+
+.deposit-slip-print-button,
+.deposit-slip-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+@media (min-width: 992px) {
+  .deposit-history-table .deposit-history-actions-column {
+    width: 7rem;
+  }
+}
+
+.deposit-slip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.deposit-slip-reconstructed {
+  color: var(--accent-amber);
+  background: color-mix(in srgb, var(--accent-amber) 12%, var(--surface));
+}

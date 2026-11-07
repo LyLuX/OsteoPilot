@@ -87,6 +87,8 @@ export default function PaymentDepositPrintPage({
   data,
   onBack,
   readOnly = false,
+  canReprint = false,
+  canDeposit = false,
   backLabel = 'Retour aux paiements',
 }) {
   const task = useTask();
@@ -104,7 +106,7 @@ export default function PaymentDepositPrintPage({
     };
   }, [savedData.cabinetName]);
   const print = async () => {
-    if (pending.current || conflict) return;
+    if (pending.current || conflict || (committed ? !canReprint : !canDeposit)) return;
     pending.current = true;
     try {
       if (!committed) {
@@ -165,14 +167,16 @@ export default function PaymentDepositPrintPage({
         >
           {backLabel}
         </button>
-        <button
-          type="button"
-          className={'btn btn-outline-' + (committed ? 'info' : 'success')}
-          disabled={task.busy || conflict}
-          onClick={print}
-        >
-          {committed ? 'Réimprimer' : 'Imprimer'}
-        </button>
+        {(committed ? canReprint : canDeposit) && (
+          <button
+            type="button"
+            className={'btn btn-outline-' + (committed ? 'info' : 'success')}
+            disabled={task.busy || conflict}
+            onClick={print}
+          >
+            {committed ? 'Réimprimer' : 'Imprimer'}
+          </button>
+        )}
       </div>
       {!committed && (
         <p className="muted">

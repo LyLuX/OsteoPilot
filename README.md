@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.11.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.12.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -339,7 +339,7 @@ dépôt via une flèche. Une coche verte remplace les cases des paiements dépos
 Annuler les dépôts annule, après confirmation, tous les dépôts du type sélectionné
 sur toutes les pages. Le bouton reste désactivé tant qu’aucun dépôt correspondant
 n’existe ou que leur lecture est en cours ou en erreur. La mutation exige les
-droits de dépôt et de lecture, une confirmation, les versions exactes et une clé
+droits payments.deposit.cancel et payments.read, une confirmation, les versions exactes et une clé
 idempotente ; les audits et annulations sont atomiques, sans modifier les montants.
 
 L’historique des dépôts est accessible à côté de Déposer et Annuler les dépôts.
@@ -351,3 +351,10 @@ réponses mémorisées ; ils portent la mention Reconstitué, car leurs informat
 d’identité d’origine n’étaient pas conservées. Les lots incomplets ne sont pas
 recréés. Les archives restent disponibles après annulation ou suppression d’un
 paiement. Appliquer db:migrate après diagnostic et vérifier db:schema:check.
+
+Les bordereaux portent les statuts Original (archivé lors du dépôt) ou Reconstitué.
+Seuls les reconstitués sont supprimables, après confirmation et avec
+payments.deposits.delete ; les paiements restent conservés. La migration 010 ajoute
+les droits payments.deposit.cancel, payments.deposits.read, payments.deposits.reprint
+et payments.deposits.delete au rôle ADMIN uniquement. Configurer explicitement les
+rôles personnalisés. La matrice des actions et prérequis figure dans docs/conventions.md.
