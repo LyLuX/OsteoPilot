@@ -15,6 +15,47 @@ export class PaymentRepository {
   constructor(db) {
     this.models = db.models;
   }
+  depositSelection(selection, transaction, limit) {
+    requireTransaction(transaction);
+    const where = { method: selection.method, bankDeposited: false };
+    if (selection.all && selection.excluded.length) where.id = { [Op.notIn]: selection.excluded };
+    if (!selection.all) where.id = { [Op.in]: selection.ids };
+    return this.models.Payments.findAll({
+      attributes: ['id', 'version', 'date', 'amountCents', 'chequeNumber'],
+      where,
+      transaction,
+      limit,
+      include: [
+        { model: this.models.Patients, as: 'patient', attributes: ['firstName', 'lastName'] },
+      ],
+      order: [
+        ['date', 'DESC'],
+        ['createdAt', 'DESC'],
+        ['id', 'ASC'],
+      ],
+    });
+  }
+  depositedByMethod(method, transaction, limit, lock = false) {
+    requireTransaction(transaction);
+    return this.models.Payments.findAll({
+      attributes: ['id', 'version'],
+      where: { method, bankDeposited: true },
+      order: [['id', 'ASC']],
+      limit,
+      transaction,
+      ...(lock ? { lock: transaction.LOCK.UPDATE } : {}),
+    });
+  }
+  depositRows(ids, transaction) {
+    requireTransaction(transaction);
+    return this.models.Payments.findAll({
+      attributes,
+      where: { id: { [Op.in]: ids } },
+      order: [['id', 'ASC']],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+  }
   create(values, transaction) {
     requireTransaction(transaction);
     return this.models.Payments.create(values, { transaction });

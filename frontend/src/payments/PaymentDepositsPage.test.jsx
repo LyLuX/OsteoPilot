@@ -2,11 +2,17 @@ import { render, screen, fireEvent, waitFor, within, act } from '@testing-librar
 import { beforeEach, expect, test, vi } from 'vitest';
 import { NotificationProvider } from '../notifications/Notifications.jsx';
 import PaymentDepositsPage from './PaymentDepositsPage.jsx';
-const mocks = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), remove: vi.fn(), can: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  patch: vi.fn(),
+  remove: vi.fn(),
+  can: vi.fn(),
+}));
 vi.mock('../auth/AuthContext.jsx', () => ({ useAuth: () => ({ can: mocks.can }) }));
 vi.mock('../api/client.js', async (original) => ({
   ...(await original()),
-  api: { get: mocks.get, patch: mocks.patch, delete: mocks.remove },
+  api: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.remove },
 }));
 let records;
 beforeEach(() => {
@@ -25,15 +31,24 @@ beforeEach(() => {
     records = records.filter((payment) => path !== '/payments/' + payment.id);
     return { id: path.split('/').at(-1) };
   });
-  mocks.get.mockImplementation(async (_path, { page, limit }) => ({
-    items: structuredClone(records.slice((page - 1) * limit, page * limit)),
-    pagination: {
-      page,
-      limit,
-      total: records.length,
-      totalPages: Math.max(1, Math.ceil(records.length / limit)),
-    },
-  }));
+  mocks.get.mockImplementation(async (path, { page, limit, method }) => {
+    if (path === '/payments/deposits/cancellable')
+      return {
+        method,
+        items: records
+          .filter((payment) => payment.method === method && payment.bankDeposited)
+          .map(({ id, version }) => ({ id, version })),
+      };
+    return {
+      items: structuredClone(records.slice((page - 1) * limit, page * limit)),
+      pagination: {
+        page,
+        limit,
+        total: records.length,
+        totalPages: Math.max(1, Math.ceil(records.length / limit)),
+      },
+    };
+  });
 });
 const show = () =>
   render(
@@ -46,18 +61,22 @@ test('tous les paiements sans dates imposées, pagination serveur et changement 
   show();
   const table = await screen.findByRole('table', { name: 'Tous les paiements' });
   expect(within(table).getByText('01/01/2020')).toBeInTheDocument();
-  expect(within(table).getAllByText('Sans objet')).toHaveLength(6);
-  expect(within(table).getAllByText('Sur le compte')).toHaveLength(6);
-  expect(mocks.get).toHaveBeenCalledWith('/payments', { page: 1, limit: 25 });
+  expect(within(table).getAllByText('Sans objet')).toHaveLength(1);
+  expect(within(table).getAllByText('Sur le compte')).toHaveLength(1);
+  expect(mocks.get).toHaveBeenCalledWith('/payments', { page: 1, limit: 5 });
+  expect(screen.getByLabelText('Nombre d’éléments par page')).toHaveValue('5');
+  expect(within(table).getAllByRole('row')).toHaveLength(6);
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
   await waitFor(() =>
-    expect(mocks.get).toHaveBeenLastCalledWith('/payments', { page: 2, limit: 25 }),
+    expect(mocks.get).toHaveBeenLastCalledWith('/payments', { page: 2, limit: 5 }),
   );
-  expect(await screen.findByText('Patient 25 Fictif')).toBeInTheDocument();
+  expect(await screen.findByText('Patient 5 Fictif')).toBeInTheDocument();
   expect(screen.queryByText('Patient 0 Fictif')).not.toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('Nombre d’éléments par page'), { target: { value: '5' } });
+  fireEvent.change(screen.getByLabelText('Nombre d’éléments par page'), {
+    target: { value: '10' },
+  });
   await waitFor(() =>
-    expect(mocks.get).toHaveBeenLastCalledWith('/payments', { page: 1, limit: 5 }),
+    expect(mocks.get).toHaveBeenLastCalledWith('/payments', { page: 1, limit: 10 }),
   );
 });
 
@@ -96,6 +115,7 @@ test('liste vide et erreur de lecture avec nouvelle tentative', async () => {
 });
 
 test('sélection globale exclusive, pages suivantes et ajustement individuel avec état partiel', async () => {
+  records = records.slice(0, 6);
   show();
   const table = await screen.findByRole('table');
   const cash = screen.getByRole('checkbox', { name: 'Paiements en espèces' });
@@ -112,7 +132,7 @@ test('sélection globale exclusive, pages suivantes et ajustement individuel ave
   expect(within(table).getAllByRole('checkbox')[0]).not.toBeChecked();
   expect(within(table).getAllByRole('checkbox')[1]).toBeChecked();
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
-  await screen.findByText('Patient 25 Fictif');
+  await screen.findByText('Patient 5 Fictif');
   const rowCheckbox = within(screen.getByRole('table')).getByRole('checkbox');
   expect(rowCheckbox).toBeChecked();
   fireEvent.click(rowCheckbox);
@@ -137,6 +157,11 @@ test('carte, virement et paiement déjà déposé non sélectionnables ; désél
   const table = await screen.findByRole('table');
   const checkboxes = within(table).getAllByRole('checkbox');
   expect(checkboxes[0]).toBeEnabled();
+  expect(checkboxes).toHaveLength(2);
+  expect(within(table).getByRole('img', { name: 'Paiement déposé' })).toBeInTheDocument();
+  const transferRow = within(table).getAllByRole('row').at(-1);
+  expect(within(transferRow).queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(transferRow).toHaveTextContent('Sur le compte');
   for (const checkbox of checkboxes.slice(1)) expect(checkbox).toBeDisabled();
   const cash = screen.getByRole('checkbox', { name: 'Paiements en espèces' });
   fireEvent.click(cash);
@@ -147,21 +172,22 @@ test('carte, virement et paiement déjà déposé non sélectionnables ; désél
 });
 
 test('suppression confirmée depuis Déposer : API versionnée, sélection effacée et retour page 1', async () => {
+  records = records.slice(0, 6);
   show();
   await screen.findByRole('table');
   fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements par chèque' }));
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
-  await screen.findByText('Patient 25 Fictif');
+  await screen.findByText('Patient 5 Fictif');
   fireEvent.click(screen.getByRole('button', { name: /Supprimer le paiement/ }));
-  expect(screen.getByRole('dialog')).toHaveTextContent('Patient 25 Fictif');
+  expect(screen.getByRole('dialog')).toHaveTextContent('Patient 5 Fictif');
   expect(mocks.remove).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
   expect(await screen.findByText('Patient 0 Fictif')).toBeInTheDocument();
-  expect(mocks.remove).toHaveBeenCalledWith('/payments/payment-25', {
+  expect(mocks.remove).toHaveBeenCalledWith('/payments/payment-5', {
     version: 1,
     confirmed: true,
   });
-  expect(mocks.get).toHaveBeenLastCalledWith('/payments', { page: 1, limit: 25 });
+  expect(mocks.get).toHaveBeenLastCalledWith('/payments', { page: 1, limit: 5 });
   expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).not.toBeChecked();
   expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).not.toBePartiallyChecked();
   expect(await screen.findByRole('alert')).toHaveTextContent('Paiement supprimé.');
@@ -184,4 +210,207 @@ test('suppression en cours : sélection et pagination désactivées', async () =
   for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled();
   await act(async () => resolve({ id: 'payment-0' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Suivant' })).toBeEnabled());
+});
+
+test('Déposer ouvre le bordereau ; impression, coche verte puis annulation remplaçant la corbeille', async () => {
+  records = [records[0], records[4]];
+  const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+  mocks.post.mockImplementation(async (path, input) => {
+    if (path === '/payments/deposits/preview')
+      return {
+        method: input.method,
+        cabinetName: 'Cabinet de test',
+        items: structuredClone(records),
+        totalCents: 9000,
+      };
+    for (const payment of records) {
+      payment.bankDeposited = true;
+      payment.version += 1;
+    }
+    return { ids: records.map((payment) => payment.id), totalCents: 9000 };
+  });
+  mocks.patch.mockImplementation(async (path, input) => {
+    Object.assign(
+      records.find((payment) => path === '/payments/' + payment.id + '/bank-deposit'),
+      input,
+      { version: input.version + 1 },
+    );
+    return {};
+  });
+  show();
+  await screen.findByRole('table');
+  expect(screen.getByRole('button', { name: 'Déposer' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Déposer' }));
+  await screen.findByRole('heading', { name: 'Impression du dépôt' });
+  expect(mocks.post).toHaveBeenCalledWith('/payments/deposits/preview', {
+    method: 'cash',
+    all: true,
+    ids: [],
+    excluded: [],
+  });
+  expect(print).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Imprimer' }));
+  await waitFor(() => expect(print).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole('button', { name: 'Retour aux paiements' }));
+  const table = await screen.findByRole('table', { name: 'Tous les paiements' });
+  expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(within(table).getAllByRole('img', { name: 'Paiement déposé' })).toHaveLength(2);
+  expect(
+    within(table).queryByRole('button', { name: /Supprimer le paiement/ }),
+  ).not.toBeInTheDocument();
+  const cancel = within(table).getAllByRole('button', { name: 'Annuler le dépôt' })[0];
+  expect(cancel.querySelector('svg')).not.toBeNull();
+  fireEvent.click(cancel);
+  await waitFor(() =>
+    expect(within(screen.getByRole('table')).getAllByRole('checkbox')).toHaveLength(1),
+  );
+  expect(mocks.patch).toHaveBeenCalledWith('/payments/payment-0/bank-deposit', {
+    bankDeposited: false,
+    version: 2,
+  });
+  print.mockRestore();
+});
+
+test('paiement déposé : annulation soumise au droit dépôt, suppression toujours absente', async () => {
+  records = [{ ...records[0], bankDeposited: true }];
+  mocks.can.mockImplementation((permission) => permission !== 'payments.deposit');
+  show();
+  const table = await screen.findByRole('table');
+  expect(within(table).getByRole('img', { name: 'Paiement déposé' })).toBeInTheDocument();
+  expect(within(table).queryByRole('button')).not.toBeInTheDocument();
+  expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument();
+});
+
+test('annulation groupée désactivée sans type ou sans dépôt, y compris si un autre type est déposé', async () => {
+  records[25].bankDeposited = true;
+  show();
+  await screen.findByRole('table');
+  const button = screen.getByRole('button', { name: 'Annuler les dépôts' });
+  expect(button).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  await waitFor(() =>
+    expect(mocks.get).toHaveBeenCalledWith('/payments/deposits/cancellable', { method: 'cash' }),
+  );
+  expect(button).toBeDisabled();
+  fireEvent.click(button);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements par chèque' }));
+  await waitFor(() => expect(button).toBeEnabled());
+  expect(mocks.post).not.toHaveBeenCalled();
+});
+
+test('annulation confirmée de tous les chèques sur toutes les pages, espèces préservées', async () => {
+  records[0].bankDeposited = true;
+  records[5].bankDeposited = true;
+  records[25].bankDeposited = true;
+  mocks.post.mockImplementation(async (path, input) => {
+    if (path !== '/payments/deposits/cancel') throw new Error('Route inattendue');
+    for (const { id, version } of input.items)
+      Object.assign(
+        records.find((payment) => payment.id === id),
+        { bankDeposited: false, version: version + 1 },
+      );
+    return { count: input.items.length };
+  });
+  show();
+  await screen.findByRole('table');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements par chèque' }));
+  const button = screen.getByRole('button', { name: 'Annuler les dépôts' });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  expect(screen.getByRole('dialog')).toHaveTextContent('par chèque');
+  expect(screen.getByRole('dialog')).toHaveTextContent('2 paiement(s)');
+  expect(mocks.post).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  await waitFor(() => expect(button).toBeDisabled());
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(mocks.post).toHaveBeenCalledWith(
+    '/payments/deposits/cancel',
+    {
+      method: 'cheque',
+      items: [
+        { id: 'payment-5', version: 1 },
+        { id: 'payment-25', version: 1 },
+      ],
+      confirmed: true,
+    },
+    { headers: { 'Idempotency-Key': expect.any(String) } },
+  );
+  expect(records[0].bankDeposited).toBe(true);
+  expect(records[5].bankDeposited).toBe(false);
+  expect(records[25].bankDeposited).toBe(false);
+  expect(records[1].version).toBe(1);
+  expect(screen.getByRole('checkbox', { name: 'Paiements par chèque' })).toBeChecked();
+  expect(screen.getByText('Dépôts annulés.').closest('.toast')).toHaveClass('bg-warning-subtle');
+});
+
+test('lecture des dépôts en échec : annulation désactivée jusqu’à une nouvelle tentative', async () => {
+  records[0].bankDeposited = true;
+  const normalGet = mocks.get.getMockImplementation();
+  let failed = true;
+  mocks.get.mockImplementation((path, query) => {
+    if (path === '/payments/deposits/cancellable' && failed)
+      return Promise.reject(new Error('Indisponible'));
+    return normalGet(path, query);
+  });
+  show();
+  await screen.findByRole('table');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  const retry = await screen.findByRole('button', { name: 'Réessayer' });
+  const cancel = screen.getByRole('button', { name: 'Annuler les dépôts' });
+  expect(cancel).toBeDisabled();
+  failed = false;
+  fireEvent.click(retry);
+  await waitFor(() => expect(cancel).toBeEnabled());
+});
+
+test('conflit d’annulation : confirmation fermée et dépôts rechargés', async () => {
+  records[0].bankDeposited = true;
+  mocks.post.mockImplementation(async () => {
+    records[0].bankDeposited = false;
+    throw { response: { status: 409, data: { error: { message: 'Les dépôts ont changé.' } } } };
+  });
+  show();
+  await screen.findByRole('table');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  const cancel = screen.getByRole('button', { name: 'Annuler les dépôts' });
+  await waitFor(() => expect(cancel).toBeEnabled());
+  fireEvent.click(cancel);
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(() => expect(cancel).toBeDisabled());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Les dépôts ont changé.');
+});
+
+test('annulation en cours : double clic ignoré, commandes désactivées et reprise avec la même clé', async () => {
+  records[0].bankDeposited = true;
+  let resolve;
+  mocks.post.mockRejectedValueOnce(new Error('Réseau indisponible')).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  show();
+  await screen.findByRole('table');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Paiements en espèces' }));
+  const cancel = screen.getByRole('button', { name: 'Annuler les dépôts' });
+  await waitFor(() => expect(cancel).toBeEnabled());
+  fireEvent.click(cancel);
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  await screen.findByRole('alert');
+  const key = mocks.post.mock.calls[0][2].headers['Idempotency-Key'];
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  expect(mocks.post).toHaveBeenCalledTimes(2);
+  expect(mocks.post.mock.calls[1][2].headers['Idempotency-Key']).toBe(key);
+  expect(screen.getByRole('button', { name: 'Suivant' })).toBeDisabled();
+  for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled();
+  await act(async () => {
+    records[0].bankDeposited = false;
+    resolve({ count: 1 });
+  });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(() => expect(cancel).toBeDisabled());
 });

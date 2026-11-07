@@ -35,6 +35,101 @@ export const components = {
       required: ['tariffs'],
       properties: { tariffs: { type: 'array', maxItems: 100, items: ref('Tariff') } },
     },
+    CancellableDeposits: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['method', 'items'],
+      description:
+        'Tous les dépôts espèces ou chèques, toutes pages, sans données personnelles. 5 000 maximum, erreur 422 au-delà sans tronquage. Tableau vide si aucun dépôt. Droits payments.read et payments.deposit.',
+      properties: {
+        method: { type: 'string', enum: ['cash', 'cheque'] },
+        items: {
+          type: 'array',
+          maxItems: 5000,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id', 'version'],
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              version: { type: 'integer', minimum: 1, maximum: 4294967295 },
+            },
+          },
+        },
+      },
+    },
+    CancelledDeposits: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['count'],
+      description:
+        'Annulation atomique de tous les dépôts du type confirmé. confirmed=true et Idempotency-Key requis. Versions et ensemble exact revérifiés sous verrou ; ajout, retrait ou modification d’un dépôt entraîne 409. Aucun dépôt entraîne 422. Montants et dates préservés, audit minimal par paiement et reprise idempotente.',
+      properties: { count: { type: 'integer', minimum: 1, maximum: 5000 } },
+    },
+    PaymentDepositPreview: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['method', 'cabinetName', 'items', 'totalCents'],
+      description:
+        'Aperçu sans écriture. Sélection exclusive espèces/chèques, toutes pages, 5 000 paiements maximum. Exige payments.read et payments.deposit. Seuls les paiements non déposés sont inclus. Une sélection individuelle devenue indisponible est refusée (409).',
+      properties: {
+        method: { type: 'string', enum: ['cash', 'cheque'] },
+        cabinetName: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 100,
+          description:
+            'Nom du cabinet configuré, projeté seul sans droit settings.read ; absence refusée (422).',
+        },
+        totalCents: { type: 'integer', minimum: 1 },
+        items: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 5000,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id', 'version', 'date', 'amountCents', 'chequeNumber', 'patient'],
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              version: { type: 'integer', minimum: 1, maximum: 4294967294 },
+              date: { type: 'string', format: 'date' },
+              amountCents: { type: 'integer', minimum: 1 },
+              chequeNumber: {
+                type: ['string', 'null'],
+                maxLength: 30,
+                pattern: '^[0-9]+$',
+                description:
+                  'Numéro du chèque avec ses zéros initiaux ; null si non renseigné ou pour les espèces.',
+              },
+              patient: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['firstName', 'lastName'],
+                properties: { firstName: { type: 'string' }, lastName: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    PaymentDepositBatch: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ids', 'totalCents'],
+      description:
+        'Dépôt de la sélection exacte du bordereau, avant ouverture de la boîte d’impression. Versions revérifiées sous verrou, refus global en cas de conflit, audit par paiement et idempotence atomiques. Aucun nom ni numéro de chèque dans les audits.',
+      properties: {
+        ids: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 5000,
+          uniqueItems: true,
+          items: { type: 'string', format: 'uuid' },
+        },
+        totalCents: { type: 'integer', minimum: 1 },
+      },
+    },
     Payments: {
       ...paginated('Payment'),
       description:

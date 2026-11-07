@@ -1682,6 +1682,403 @@ test('tarifs : ajouts concurrents sans perte et plafond de 100 tarifs', async ()
   }
 });
 
+test('bordereau : aperçu sans mutation, sélection globale, dépôt atomique idempotent et annulation', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const rows = [];
+  for (const amountCents of [101, 202])
+    rows.push(
+      await payments.create(
+        session.token,
+        session.csrfToken,
+        paymentValues(patient.id, { method: 'cash', amountCents }),
+        randomUUID(),
+      ),
+    );
+  const operator = await restrictedUser(['payments.read', 'payments.deposit']);
+  const selected = { method: 'cash', all: false, ids: rows.map((row) => row.id), excluded: [] };
+  const before = await snapshot();
+  const preview = await payments.depositPreview(session.token, session.csrfToken, selected);
+  expect(await snapshot()).toEqual(before);
+  expect(preview.totalCents).toBe(303);
+  const identity = await db.models.Settings.findOne({ attributes: ['name'] });
+  expect(preview.cabinetName).toBe(identity.name);
+  expect(Object.keys(preview).sort()).toEqual(
+    ['method', 'items', 'totalCents', 'cabinetName'].sort(),
+  );
+  expect(preview.items.every((payment) => payment.chequeNumber === null)).toBe(true);
+  const operatorPreview = await payments.depositPreview(
+    operator.session.token,
+    operator.session.csrfToken,
+    selected,
+  );
+  expect(operatorPreview.cabinetName).toBe(identity.name);
+  expect(preview.items).toHaveLength(2);
+  expect(preview.items[0].patient).toEqual({
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+  });
+  expect(Object.keys(preview.items[0]).sort()).toEqual(
+    ['id', 'version', 'date', 'amountCents', 'chequeNumber', 'patient'].sort(),
+  );
+  const global = await payments.depositPreview(session.token, session.csrfToken, {
+    method: 'cash',
+    all: true,
+    ids: [],
+    excluded: [rows[0].id],
+  });
+  expect(global.items.map((row) => row.id)).toContain(rows[1].id);
+  expect(global.items.map((row) => row.id)).not.toContain(rows[0].id);
+  const values = {
+    method: preview.method,
+    items: preview.items.map(({ id, version }) => ({ id, version })),
+  };
+  const key = randomUUID();
+  const send = () =>
+    request(app)
+      .post('/api/v1/payments/deposits')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + session.token)
+      .set('X-CSRF-Token', session.csrfToken)
+      .set('Idempotency-Key', key)
+      .send(values);
+  const response = await send();
+  expect(response.status).toBe(200);
+  expect(response.body.data.totalCents).toBe(303);
+  for (const row of rows)
+    expect((await db.models.Payments.findByPk(row.id)).bankDeposited).toBe(true);
+  const after = await snapshot();
+  expect(after.AuditLogs).toBe(before.AuditLogs + 2);
+  expect((await send()).body.data).toEqual(response.body.data);
+  expect(await snapshot()).toEqual(after);
+  await expect(
+    payments.depositBatch(
+      session.token,
+      session.csrfToken,
+      { ...values, items: [values.items[0]] },
+      key,
+    ),
+  ).rejects.toMatchObject({ status: 409 });
+  const audits = await db.models.AuditLogs.findAll({
+    where: { action: 'payments.bank-deposit.mark', entityId: rows.map((row) => row.id) },
+    raw: true,
+  });
+  expect(audits).toHaveLength(2);
+  expect(JSON.stringify(audits)).not.toMatch(/amountCents|firstName|lastName|chequeNumber/);
+  await payments.setBankDeposit(session.token, session.csrfToken, rows[0].id, {
+    bankDeposited: false,
+    version: 2,
+  });
+  const undone = await db.models.Payments.findByPk(rows[0].id);
+  expect(undone.bankDeposited).toBe(false);
+  expect(undone.amountCents).toBe(101);
+  expect(undone.version).toBe(3);
+});
+
+test('bordereau : conflit et panne audit annulent tout le lot, concurrence sans double dépôt', async () => {
+  await acceptMethod('cheque');
+  const patient = await paymentPatient();
+  const rows = [];
+  for (const amountCents of [101, 202])
+    rows.push(
+      await payments.create(
+        session.token,
+        session.csrfToken,
+        paymentValues(patient.id, {
+          method: 'cheque',
+          amountCents,
+          ...(amountCents === 101 ? { chequeNumber: '0012345' } : {}),
+        }),
+        randomUUID(),
+      ),
+    );
+
+  const preview = await payments.depositPreview(session.token, session.csrfToken, {
+    method: 'cheque',
+    all: false,
+    ids: rows.map((row) => row.id),
+    excluded: [],
+  });
+  expect(preview.items.find((payment) => payment.id === rows[0].id).chequeNumber).toBe('0012345');
+  expect(preview.items.find((payment) => payment.id === rows[1].id).chequeNumber).toBeNull();
+  const input = { method: 'cheque', items: rows.map(({ id, version }) => ({ id, version })) };
+  const before = await snapshot();
+  await expect(
+    payments.depositBatch(
+      session.token,
+      session.csrfToken,
+      { ...input, items: [{ ...input.items[0], version: 2 }, input.items[1]] },
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(await snapshot()).toEqual(before);
+  const original = db.models.AuditLogs.create.bind(db.models.AuditLogs);
+  let calls = 0;
+  const spy = jest.spyOn(db.models.AuditLogs, 'create').mockImplementation((...args) => {
+    calls++;
+    if (calls === 2) throw new Error('Panne second audit dépôt');
+    return original(...args);
+  });
+  await expect(
+    payments.depositBatch(session.token, session.csrfToken, input, randomUUID()),
+  ).rejects.toThrow('Panne second audit dépôt');
+  spy.mockRestore();
+  expect(await snapshot()).toEqual(before);
+  for (const row of rows)
+    expect(await db.models.Payments.findByPk(row.id)).toMatchObject({
+      bankDeposited: false,
+      version: 1,
+    });
+  const results = await Promise.allSettled([
+    payments.depositBatch(session.token, session.csrfToken, input, randomUUID()),
+    payments.depositBatch(session.token, session.csrfToken, input, randomUUID()),
+  ]);
+  expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+  expect(results.find((result) => result.status === 'rejected').reason).toMatchObject({
+    status: 409,
+  });
+  expect((await snapshot()).AuditLogs).toBe(before.AuditLogs + 2);
+});
+
+test('bordereau : permissions, origine, CSRF, sélection indisponible et bornes', async () => {
+  const reader = await restrictedUser(['payments.read']);
+  const depositor = await restrictedUser(['payments.deposit']);
+  const selection = { method: 'cash', all: false, ids: [randomUUID()], excluded: [] };
+  await expect(
+    payments.depositPreview(reader.session.token, reader.session.csrfToken, selection),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    payments.depositPreview(depositor.session.token, depositor.session.csrfToken, selection),
+  ).rejects.toMatchObject({ status: 403 });
+  const input = { method: 'cash', items: [{ id: randomUUID(), version: 1 }] };
+  await expect(
+    payments.depositBatch(reader.session.token, reader.session.csrfToken, input, randomUUID()),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    payments.depositBatch(
+      depositor.session.token,
+      depositor.session.csrfToken,
+      input,
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    payments.depositBatch(session.token, 'invalid', input, randomUUID()),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    payments.depositBatch(session.token, session.csrfToken, input, randomUUID()),
+  ).rejects.toMatchObject({ status: 409 });
+  await expect(
+    payments.depositPreview(session.token, session.csrfToken, selection),
+  ).rejects.toMatchObject({ status: 409 });
+  const noOrigin = await request(app)
+    .post('/api/v1/payments/deposits')
+    .set('Cookie', 'osteopilot.access=' + session.token)
+    .send(input);
+  expect(noOrigin.status).toBe(403);
+  const csrf = await request(app)
+    .post('/api/v1/payments/deposits/preview')
+    .set('Origin', config.publicUrl)
+    .set('Cookie', 'osteopilot.access=' + session.token)
+    .send(selection);
+  expect(csrf.status).toBe(403);
+  const spy = jest
+    .spyOn(payments.repository, 'depositSelection')
+    .mockResolvedValueOnce(Array(5001).fill({}));
+  await expect(
+    payments.depositPreview(session.token, session.csrfToken, {
+      method: 'cash',
+      all: true,
+      ids: [],
+      excluded: [],
+    }),
+  ).rejects.toMatchObject({ status: 422 });
+  spy.mockRestore();
+});
+
+test('annulation globale : tous les dépôts du type, versions, audit minimal et idempotence', async () => {
+  await acceptMethod('cash');
+  await acceptMethod('cheque');
+  const patient = await paymentPatient();
+  const created = [];
+  for (const method of ['cash', 'cash', 'cheque']) {
+    const row = await payments.create(
+      session.token,
+      session.csrfToken,
+      paymentValues(patient.id, { method, amountCents: 101 }),
+      randomUUID(),
+    );
+    created.push(
+      await payments.setBankDeposit(session.token, session.csrfToken, row.id, {
+        bankDeposited: true,
+        version: row.version,
+      }),
+    );
+  }
+  const response = await request(app)
+    .get('/api/v1/payments/deposits/cancellable')
+    .set('Cookie', 'osteopilot.access=' + session.token)
+    .query({ method: 'cash' });
+  expect(response.status).toBe(200);
+  const selection = response.body.data;
+  for (const item of selection.items) expect(Object.keys(item).sort()).toEqual(['id', 'version']);
+  expect(selection.items.map(({ id }) => id)).toEqual(
+    expect.arrayContaining(created.slice(0, 2).map(({ id }) => id)),
+  );
+  expect(selection.items.map(({ id }) => id)).not.toContain(created[2].id);
+  const beforeRows = await db.models.Payments.findAll({
+    attributes: ['id', 'date', 'method', 'amountCents', 'bankDeposited', 'version'],
+    raw: true,
+  });
+  const before = await snapshot();
+  const key = randomUUID();
+  const input = { ...selection, confirmed: true };
+  const send = () =>
+    request(app)
+      .post('/api/v1/payments/deposits/cancel')
+      .set('Origin', config.publicUrl)
+      .set('Cookie', 'osteopilot.access=' + session.token)
+      .set('X-CSRF-Token', session.csrfToken)
+      .set('Idempotency-Key', key)
+      .send(input);
+  const result = await send();
+  expect(result.status).toBe(200);
+  expect(result.body.data.count).toBe(selection.items.length);
+  expect((await payments.cancellableDeposits(session.token, { method: 'cash' })).items).toEqual([]);
+  for (const row of beforeRows) {
+    const stored = (await db.models.Payments.findByPk(row.id)).get({ plain: true });
+    expect(stored.date).toBe(row.date);
+    expect(stored.amountCents).toBe(row.amountCents);
+    if (row.method === 'cash' && row.bankDeposited)
+      expect(stored).toMatchObject({ bankDeposited: false, version: row.version + 1 });
+    else
+      expect(stored).toMatchObject({
+        bankDeposited: Boolean(row.bankDeposited),
+        version: row.version,
+      });
+  }
+  const after = await snapshot();
+  expect(after.AuditLogs).toBe(before.AuditLogs + selection.items.length);
+  expect((await send()).body.data).toEqual(result.body.data);
+  expect(await snapshot()).toEqual(after);
+  await expect(
+    payments.cancelDeposits(session.token, session.csrfToken, input, randomUUID()),
+  ).rejects.toMatchObject({ status: 422 });
+  expect(await snapshot()).toEqual(after);
+  const audits = await db.models.AuditLogs.findAll({
+    where: {
+      action: 'payments.bank-deposit.unmark',
+      entityId: selection.items.map(({ id }) => id),
+    },
+    raw: true,
+  });
+  expect(JSON.stringify(audits)).not.toMatch(/amountCents|firstName|lastName|chequeNumber/);
+});
+
+test('annulation globale : conflit sur ajout ou version, rollback du second audit et concurrence', async () => {
+  await acceptMethod('cash');
+  const patient = await paymentPatient();
+  const first = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id, { method: 'cash' }),
+    randomUUID(),
+  );
+  await payments.setBankDeposit(session.token, session.csrfToken, first.id, {
+    bankDeposited: true,
+    version: 1,
+  });
+  const old = await payments.cancellableDeposits(session.token, { method: 'cash' });
+  const next = await payments.create(
+    session.token,
+    session.csrfToken,
+    paymentValues(patient.id, { method: 'cash' }),
+    randomUUID(),
+  );
+  await payments.setBankDeposit(session.token, session.csrfToken, next.id, {
+    bankDeposited: true,
+    version: 1,
+  });
+  await expect(
+    payments.cancelDeposits(
+      session.token,
+      session.csrfToken,
+      { ...old, confirmed: true },
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ status: 409 });
+  const selection = await payments.cancellableDeposits(session.token, { method: 'cash' });
+  const input = { ...selection, confirmed: true };
+  const stale = {
+    ...input,
+    items: input.items.map((item, index) =>
+      index === 0 ? { ...item, version: item.version + 1 } : item,
+    ),
+  };
+  const before = await snapshot();
+  await expect(
+    payments.cancelDeposits(session.token, session.csrfToken, stale, randomUUID()),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(await snapshot()).toEqual(before);
+  const original = db.models.AuditLogs.create.bind(db.models.AuditLogs);
+  let calls = 0;
+  const spy = jest.spyOn(db.models.AuditLogs, 'create').mockImplementation((...args) => {
+    calls++;
+    if (calls === 2) throw new Error('Panne second audit annulation');
+    return original(...args);
+  });
+  await expect(
+    payments.cancelDeposits(session.token, session.csrfToken, input, randomUUID()),
+  ).rejects.toThrow('Panne second audit annulation');
+  spy.mockRestore();
+  expect(await snapshot()).toEqual(before);
+  expect(await payments.cancellableDeposits(session.token, { method: 'cash' })).toEqual(selection);
+  const results = await Promise.allSettled([
+    payments.cancelDeposits(session.token, session.csrfToken, input, randomUUID()),
+    payments.cancelDeposits(session.token, session.csrfToken, input, randomUUID()),
+  ]);
+  expect(results.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
+  expect(results.find(({ status }) => status === 'rejected').reason).toMatchObject({ status: 422 });
+  expect((await snapshot()).AuditLogs).toBe(before.AuditLogs + selection.items.length);
+});
+
+test('annulation globale : droits backend, CSRF, confirmation et limite sans tronquage', async () => {
+  const reader = await restrictedUser(['payments.read']);
+  const depositor = await restrictedUser(['payments.deposit']);
+  const input = { method: 'cash', items: [{ id: randomUUID(), version: 1 }], confirmed: true };
+  for (const user of [reader, depositor]) {
+    await expect(
+      payments.cancellableDeposits(user.session.token, { method: 'cash' }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      payments.cancelDeposits(user.session.token, user.session.csrfToken, input, randomUUID()),
+    ).rejects.toMatchObject({ status: 403 });
+  }
+  await expect(
+    payments.cancelDeposits(session.token, 'invalid', input, randomUUID()),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    payments.cancelDeposits(
+      session.token,
+      session.csrfToken,
+      { ...input, confirmed: false },
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ status: 422 });
+  const noOrigin = await request(app)
+    .post('/api/v1/payments/deposits/cancel')
+    .set('Cookie', 'osteopilot.access=' + session.token)
+    .send(input);
+  expect(noOrigin.status).toBe(403);
+  const spy = jest
+    .spyOn(payments.repository, 'depositedByMethod')
+    .mockResolvedValueOnce(Array(5001).fill({}));
+  await expect(
+    payments.cancellableDeposits(session.token, { method: 'cash' }),
+  ).rejects.toMatchObject({ status: 422 });
+  spy.mockRestore();
+});
+
 test('migration 008 : colonne nullable, paiements préservés et reprise du DDL sans écrasement', async () => {
   const before = await db.models.Payments.findAll({
     attributes: ['id', 'amountCents', 'date', 'method'],

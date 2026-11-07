@@ -30,6 +30,11 @@ export function createControllers({ auth, patients, administration, payments }) 
     tariffUpdate: (req) => administration.saveTariff(token(req), csrf(req), id(req), req.body),
     paymentDelete: (req) => payments.remove(token(req), csrf(req), id(req), req.body),
     patientPayments: (req) => payments.patientPayments(token(req), id(req), req.query),
+    paymentDepositsCancellable: (req) => payments.cancellableDeposits(token(req), req.query),
+    paymentDepositsCancel: (req) =>
+      payments.cancelDeposits(token(req), csrf(req), req.body, key(req)),
+    paymentDepositPreview: (req) => payments.depositPreview(token(req), csrf(req), req.body),
+    paymentDepositBatch: (req) => payments.depositBatch(token(req), csrf(req), req.body, key(req)),
     paymentBankDeposit: (req) => payments.setBankDeposit(token(req), csrf(req), id(req), req.body),
     paymentsList: (req) => payments.list(req.query),
     paymentsSummary: (req) => payments.summary(req.query),

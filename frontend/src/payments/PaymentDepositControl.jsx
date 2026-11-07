@@ -3,15 +3,23 @@ import PaymentDepositBadge from './PaymentDepositBadge.jsx';
 import { api } from '../api/client.js';
 import { useTask } from '../components/shared.jsx';
 
-export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
+export default function PaymentDepositControl({
+  payment,
+  canUpdate,
+  onSaved,
+  compact = false,
+  disabled = false,
+  onBusyChange,
+}) {
   const task = useTask();
   const pending = useRef(false);
   const labelId = useId();
   if (!['cash', 'cheque'].includes(payment.method)) return null;
   const deposited = payment.bankDeposited === true;
   const change = async () => {
-    if (pending.current) return;
+    if (pending.current || disabled) return;
     pending.current = true;
+    onBusyChange?.(true);
     try {
       await task.run(
         async () => {
@@ -31,6 +39,7 @@ export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
       );
     } finally {
       pending.current = false;
+      onBusyChange?.(false);
     }
   };
   return (
@@ -39,14 +48,17 @@ export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
         'payment-deposit-control' + (deposited ? ' payment-deposit-control--deposited' : '')
       }
     >
-      <PaymentDepositBadge payment={payment} id={labelId} />
+      {!compact && <PaymentDepositBadge payment={payment} id={labelId} />}
       {canUpdate && (
         <button
           type="button"
           className={
-            'btn btn-sm payment-deposit-button btn-outline-' + (deposited ? 'warning' : 'success')
+            'btn btn-sm payment-deposit-button ' +
+            (compact ? 'payment-deposit-cancel-button ' : '') +
+            'btn-outline-' +
+            (deposited ? 'warning' : 'success')
           }
-          aria-describedby={labelId}
+          aria-describedby={compact ? undefined : labelId}
           aria-label={
             task.busy ? 'Mise à jour du dépôt' : deposited ? 'Annuler le dépôt' : 'Déposer'
           }
@@ -54,10 +66,31 @@ export default function PaymentDepositControl({ payment, canUpdate, onSaved }) {
           title={
             deposited ? 'Annuler le dépôt en banque' : 'Marquer ce paiement comme déposé en banque'
           }
-          disabled={task.busy}
+          disabled={task.busy || disabled}
           onClick={change}
         >
-          {task.busy ? '…' : deposited ? 'Annuler' : 'Déposer'}
+          {compact ? (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" />
+            </svg>
+          ) : task.busy ? (
+            '…'
+          ) : deposited ? (
+            'Annuler'
+          ) : (
+            'Déposer'
+          )}
         </button>
       )}
     </span>

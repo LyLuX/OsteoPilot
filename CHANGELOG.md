@@ -2,6 +2,35 @@
 
 ## Non publié
 
+## 0.10.0 - 2026-11-07
+
+- [MINOR] Annuler les dépôts, à côté de Déposer, annule après confirmation tous
+  les dépôts du type sélectionné, espèces ou chèques, sur toutes les pages.
+  Le bouton est désactivé si aucun dépôt correspondant n’existe. Le serveur
+  contrôle droits, confirmation et versions sous verrou ; annulations, audits
+  minimaux et idempotence sont atomiques. Un conflit recharge les dépôts sans
+  annulation partielle ; les montants et dates restent inchangés.
+
+- [PATCH] La pagination commune reste entièrement visible dans les panneaux
+  étroits : les commandes passent à la ligne sans défilement horizontal, avec
+  des boutons compacts à la souris et des cibles tactiles de 44 px conservées.
+  La page Déposer affiche cinq paiements par défaut, avec les choix 5, 10 ou 25.
+
+- [MINOR] Déposer ouvre un bordereau A4 inspiré des fiches de maintenance
+  GreenDesk, avec noms, dates, montants et total. Imprimer valide atomiquement
+  les paiements sélectionnés avant d’ouvrir la boîte d’impression ; l’aperçu
+  n’écrit rien. Versions, permissions et idempotence protègent les reprises et
+  les conflits. Une coche verte remplace la case des paiements déposés et une
+  flèche d’annulation remplace leur corbeille. Une annulation rend le paiement
+  de nouveau sélectionnable, sans modifier son montant ni sa date. Le bouton
+  Déposer est aligné à droite des cases de sélection ; le bordereau porte le nom
+  du cabinet configuré et affiche les numéros de chèques, zéros initiaux compris.
+  L’impression exclut les notifications et tous les éléments hors bordereau ;
+  le nombre de paiements figure sur une ligne au-dessus du montant total.
+  Les virements n’affichent aucune case de sélection dans la colonne Déposer.
+  Le bandeau du cabinet, le titre, les colonnes et le pied de page se répètent
+  sur chaque feuille imprimée ; le récapitulatif reste uniquement à la fin.
+
 ## 0.9.0 - 2026-11-07
 
 - [MINOR] La saisie d’un paiement par chèque propose un numéro facultatif de

@@ -1,6 +1,10 @@
 import { parse } from '../src/core/validation.js';
 import {
   paymentInput,
+  paymentDepositCancelQuery,
+  paymentDepositCancelInput,
+  paymentDepositSelection,
+  paymentDepositBatch,
   paymentDeleteInput,
   patientPaymentsQuery,
   paymentSummaryQuery,
@@ -121,4 +125,50 @@ test('numéro de chèque : facultatif, textuel, borné et réservé aux chèques
   }
   expect(publicPayment(cheque).chequeNumber).toBe('0012345');
   expect(publicPayment({ ...input, method: 'cheque' }).chequeNumber).toBeNull();
+});
+
+test('bordereau : type unique, UUID distincts, sélection et versions bornées', () => {
+  const id = input.patientId;
+  const all = { method: 'cash', all: true, ids: [], excluded: [id] };
+  expect(parse(paymentDepositSelection, all)).toEqual(all);
+  expect(
+    parse(paymentDepositSelection, { method: 'cheque', all: false, ids: [id], excluded: [] }).ids,
+  ).toEqual([id]);
+  for (const value of [
+    { ...all, method: 'card' },
+    { ...all, ids: [id] },
+    { ...all, all: false },
+    { ...all, excluded: [id, id] },
+    { ...all, excluded: ['not-uuid'] },
+    { ...all, ids: [], excluded: [], amountCents: 100 },
+  ])
+    expect(() => parse(paymentDepositSelection, value)).toThrow();
+  const batch = { method: 'cash', items: [{ id, version: 1 }] };
+  expect(parse(paymentDepositBatch, batch)).toEqual(batch);
+  for (const value of [
+    { ...batch, items: [] },
+    { ...batch, method: 'transfer' },
+    { ...batch, items: [{ id, version: 0 }] },
+    { ...batch, items: [{ id, version: 4294967295 }] },
+    { ...batch, items: [batch.items[0], batch.items[0]] },
+    { ...batch, items: [{ id, version: 1, amountCents: 100 }] },
+    { ...batch, items: Array(5001).fill(batch.items[0]) },
+  ])
+    expect(() => parse(paymentDepositBatch, value)).toThrow();
+});
+
+test('annulation groupée : type strict, confirmation obligatoire et versions distinctes', () => {
+  const value = { method: 'cash', items: [{ id: input.patientId, version: 1 }], confirmed: true };
+  expect(parse(paymentDepositCancelInput, value)).toEqual(value);
+  expect(parse(paymentDepositCancelQuery, { method: 'cheque' })).toEqual({ method: 'cheque' });
+  for (const query of [{}, { method: 'card' }, { method: 'cash', page: 1 }])
+    expect(() => parse(paymentDepositCancelQuery, query)).toThrow();
+  for (const extra of [
+    { confirmed: false },
+    { confirmed: undefined },
+    { items: [] },
+    { method: 'transfer' },
+    { items: [value.items[0], value.items[0]] },
+  ])
+    expect(() => parse(paymentDepositCancelInput, { ...value, ...extra })).toThrow();
 });

@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.9.0** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.10.0** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 
@@ -326,3 +326,18 @@ chèque permettent une sélection exclusive par type sur toutes les pages, avec
 ajustements individuels, sous payments.deposit. La sélection seule ne change pas
 les statuts. Les paiements déjà déposés, cartes et virements ne sont pas
 sélectionnables. La suppression reste soumise à payments.delete et confirmation.
+
+Le bouton Déposer, aligné à droite des cases, prépare un bordereau A4 au nom du
+cabinet configuré, avec noms, dates, numéros de chèques, montants et total.
+L’aperçu est sans mutation. Imprimer valide le lot exact, ses versions et ses
+audits dans une transaction, avec reprise idempotente, avant d’ouvrir la boîte
+d’impression. Les deux opérations exigent payments.read et payments.deposit.
+La sélection est bornée à 5 000 paiements et n’est jamais tronquée silencieusement.
+Le navigateur ne confirme pas la sortie papier ; la liste permet d’annuler le
+dépôt via une flèche. Une coche verte remplace les cases des paiements déposés.
+
+Annuler les dépôts annule, après confirmation, tous les dépôts du type sélectionné
+sur toutes les pages. Le bouton reste désactivé tant qu’aucun dépôt correspondant
+n’existe ou que leur lecture est en cours ou en erreur. La mutation exige les
+droits de dépôt et de lecture, une confirmation, les versions exactes et une clé
+idempotente ; les audits et annulations sont atomiques, sans modifier les montants.

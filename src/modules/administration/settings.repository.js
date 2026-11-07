@@ -15,6 +15,9 @@ export class SettingsRepository {
   constructor(db) {
     this.model = db.models.Settings;
   }
+  printIdentity(transaction) {
+    return this.model.findOne({ attributes: ['name'], transaction });
+  }
   tariffs() {
     return this.model.findOne({ attributes: ['tariffs'] });
   }

@@ -10,6 +10,11 @@ import { IdempotencyRepository } from '../../core/database/idempotency.repositor
 import { PaymentRepository } from './payment.repository.js';
 import {
   paymentInput,
+  paymentDepositCancelQuery,
+  paymentDepositCancelInput,
+  paymentDepositSelection,
+  paymentDepositBatch,
+  depositBatchLimit,
   paymentDeleteInput,
   patientPaymentsQuery,
   paymentDepositInput,
@@ -26,6 +31,180 @@ export class PaymentService {
     this.repository = new PaymentRepository(db);
     this.settings = new SettingsRepository(db);
     this.idempotency = new IdempotencyRepository(db);
+  }
+  async cancellableDeposits(token, query) {
+    const { method } = parse(paymentDepositCancelQuery, query);
+    return this.db.sequelize.transaction(async (tx) => {
+      const context = await this.auth.authenticate(token, tx);
+      this.auth.permit(context, 'payments.read');
+      this.auth.permit(context, 'payments.deposit');
+      const rows = await this.repository.depositedByMethod(method, tx, depositBatchLimit + 1);
+      assert(
+        rows.length <= depositBatchLimit,
+        'Trop de dépôts à annuler : contactez l’administrateur (5 000 maximum par opération).',
+        422,
+      );
+      return { method, items: rows.map(({ id, version }) => ({ id, version })) };
+    });
+  }
+  async cancelDeposits(token, csrf, values, key) {
+    const input = parse(paymentDepositCancelInput, values);
+    input.items.sort((a, b) => a.id.localeCompare(b.id));
+    assert(
+      typeof key === 'string' && /^[a-zA-Z0-9-]{16,100}$/.test(key),
+      'Clé Idempotency-Key requise (16 à 100 caractères).',
+      422,
+    );
+    return this.auth.write(token, csrf, 'payments.deposit', async (ctx, tx) => {
+      this.auth.permit(ctx, 'payments.read');
+      const keyHash = digest(key);
+      const requestHash = digest(JSON.stringify({ operation: 'payments.cancel-deposits', input }));
+      const existing = await this.idempotency.find(ctx.user.id, keyHash, tx);
+      if (existing) {
+        assert(
+          existing.requestHash === requestHash,
+          'Clé déjà utilisée pour une autre requête.',
+          409,
+        );
+        return existing.result;
+      }
+      const rows = await this.repository.depositedByMethod(
+        input.method,
+        tx,
+        depositBatchLimit + 1,
+        true,
+      );
+      assert(rows.length > 0, 'Aucun paiement déposé pour ce type de paiement.', 422);
+      const versions = new Map(input.items.map(({ id, version }) => [id, version]));
+      assert(
+        rows.length === input.items.length &&
+          rows.every((row) => row.version === versions.get(row.id)),
+        'Les dépôts ont changé. Actualisez la liste avant de confirmer leur annulation.',
+        409,
+      );
+      const memo = await this.idempotency.create({ userId: ctx.user.id, keyHash, requestHash }, tx);
+      for (const row of rows) {
+        await this.repository.updateDeposit(
+          row,
+          { bankDeposited: false, version: row.version + 1 },
+          tx,
+        );
+        await recordAudit(
+          this.db,
+          {
+            actorId: ctx.user.id,
+            action: 'payments.bank-deposit.unmark',
+            entity: 'payment',
+            entityId: row.id,
+          },
+          tx,
+        );
+      }
+      const result = { count: rows.length };
+      await this.idempotency.complete(memo, result, tx);
+      return result;
+    });
+  }
+  async depositPreview(token, csrf, values) {
+    const input = parse(paymentDepositSelection, values);
+    return this.auth.write(token, csrf, 'payments.deposit', async (ctx, tx) => {
+      this.auth.permit(ctx, 'payments.read');
+      const rows = await this.repository.depositSelection(input, tx, depositBatchLimit + 1);
+      assert(
+        rows.length <= depositBatchLimit,
+        'Sélection trop grande : choisissez au maximum 5 000 paiements.',
+        422,
+      );
+      assert(
+        input.all || rows.length === input.ids.length,
+        'La sélection a changé. Actualisez la liste.',
+        409,
+      );
+      assert(rows.length > 0, 'Aucun paiement à déposer dans cette sélection.', 422);
+      const cabinet = await this.settings.printIdentity(tx);
+      assert(
+        cabinet?.name?.trim(),
+        'Renseignez le nom du cabinet dans le paramétrage avant d’imprimer.',
+        422,
+      );
+      let totalCents = 0;
+      const items = rows.map((row) => {
+        totalCents += row.amountCents;
+        assert(Number.isSafeInteger(totalCents), 'Montants hors limites.', 422);
+        return {
+          id: row.id,
+          version: row.version,
+          date: row.date,
+          amountCents: row.amountCents,
+          chequeNumber: input.method === 'cheque' ? (row.chequeNumber ?? null) : null,
+          patient: { firstName: row.patient.firstName, lastName: row.patient.lastName },
+        };
+      });
+      return { method: input.method, cabinetName: cabinet.name, items, totalCents };
+    });
+  }
+  async depositBatch(token, csrf, values, key) {
+    const input = parse(paymentDepositBatch, values);
+    input.items.sort((a, b) => a.id.localeCompare(b.id));
+    assert(
+      typeof key === 'string' && /^[a-zA-Z0-9-]{16,100}$/.test(key),
+      'Clé Idempotency-Key requise (16 à 100 caractères).',
+      422,
+    );
+    return this.auth.write(token, csrf, 'payments.deposit', async (ctx, tx) => {
+      this.auth.permit(ctx, 'payments.read');
+      const keyHash = digest(key);
+      const requestHash = digest(JSON.stringify({ operation: 'payments.deposit-batch', input }));
+      const existing = await this.idempotency.find(ctx.user.id, keyHash, tx);
+      if (existing) {
+        assert(
+          existing.requestHash === requestHash,
+          'Clé déjà utilisée pour une autre requête.',
+          409,
+        );
+        return existing.result;
+      }
+      const rows = await this.repository.depositRows(
+        input.items.map((item) => item.id),
+        tx,
+      );
+      const versions = new Map(input.items.map((item) => [item.id, item.version]));
+      assert(
+        rows.length === input.items.length &&
+          rows.every(
+            (row) =>
+              row.method === input.method &&
+              !row.bankDeposited &&
+              row.version === versions.get(row.id),
+          ),
+        'La sélection a changé. Revenez à la liste pour préparer un nouveau bordereau.',
+        409,
+      );
+      const memo = await this.idempotency.create({ userId: ctx.user.id, keyHash, requestHash }, tx);
+      let totalCents = 0;
+      for (const row of rows) {
+        totalCents += row.amountCents;
+        assert(Number.isSafeInteger(totalCents), 'Montants hors limites.', 422);
+        await this.repository.updateDeposit(
+          row,
+          { bankDeposited: true, version: row.version + 1 },
+          tx,
+        );
+        await recordAudit(
+          this.db,
+          {
+            actorId: ctx.user.id,
+            action: 'payments.bank-deposit.mark',
+            entity: 'payment',
+            entityId: row.id,
+          },
+          tx,
+        );
+      }
+      const result = { ids: rows.map((row) => row.id), totalCents };
+      await this.idempotency.complete(memo, result, tx);
+      return result;
+    });
   }
   async list(query) {
     query = parse(paymentQuery, query);

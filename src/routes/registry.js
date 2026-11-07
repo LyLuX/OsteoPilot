@@ -5,6 +5,10 @@ import {
   patientPaymentsQuery,
   paymentDepositInput,
   paymentQuery,
+  paymentDepositSelection,
+  paymentDepositBatch,
+  paymentDepositCancelQuery,
+  paymentDepositCancelInput,
   paymentSummaryQuery,
   paymentPatientQuery,
 } from '../modules/payments/payment.validator.js';
@@ -28,6 +32,43 @@ import {
 } from '../modules/administration/administration.service.js';
 const csv = z.string().min(1).max(524288);
 export const routes = [
+  {
+    method: 'get',
+    path: '/payments/deposits/cancellable',
+    permission: 'payments.deposit',
+    query: paymentDepositCancelQuery,
+    action: 'paymentDepositsCancellable',
+    summary: 'Lire les UUID et versions de tous les dépôts du type choisi ; payments.read requis',
+  },
+  {
+    method: 'post',
+    path: '/payments/deposits/cancel',
+    permission: 'payments.deposit',
+    body: paymentDepositCancelInput,
+    idempotent: true,
+    action: 'paymentDepositsCancel',
+    summary:
+      'Annuler tous les dépôts du type choisi, avec confirmation, versions et audit atomique ; payments.read requis',
+  },
+  {
+    method: 'post',
+    path: '/payments/deposits/preview',
+    permission: 'payments.deposit',
+    body: paymentDepositSelection,
+    action: 'paymentDepositPreview',
+    summary:
+      'Préparer un bordereau sans mutation, tous paiements sélectionnés et total ; payments.read requis',
+  },
+  {
+    method: 'post',
+    path: '/payments/deposits',
+    permission: 'payments.deposit',
+    body: paymentDepositBatch,
+    idempotent: true,
+    action: 'paymentDepositBatch',
+    summary:
+      'Valider atomiquement les dépôts du bordereau avec versions et audit ; payments.read requis',
+  },
   {
     method: 'get',
     path: '/settings/tariffs',

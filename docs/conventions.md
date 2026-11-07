@@ -125,7 +125,10 @@ avec audit dans le même commit et permissions payments.read/payments.create.
 Utiliser PaginationControls (repris de GreenDesk), via Pagination et usePagination
 dans shared.jsx, pour toute pagination. Transmettre limit à la requête backend ;
 proposer 5, 10 ou 25 éléments et revenir à la page 1 à chaque changement de taille.
-Désactiver les commandes pendant un chargement ou une opération concurrente.
+Désactiver les commandes pendant un chargement ou une opération concurrente. La
+pagination doit tenir dans la largeur de son panneau, sans défilement horizontal
+ni commandes masquées. Autoriser le retour à la ligne des boutons ; conserver
+44 px pour le tactile et utiliser 36 px avec une souris précise.
 
 Réutiliser PaymentMethodIcon pour les quatre moyens. Les variantes payment-method--*
 définissent uniquement --payment-method-color à partir des variables --payment-*-color
@@ -148,6 +151,7 @@ les cases ; la liste des paiements conserve leur libellé historique.
 
 ## Dépôt des paiements
 
+La page Déposer affiche cinq paiements par défaut ; les tailles 10 et 25 restent disponibles.
 Le menu Gestion paiements > Déposer liste tous les paiements via GET /payments
 avec page et limit, sans filtre de date. La lecture exige payments.read. Le tableau
 réutilise la pagination commune et affiche uniquement les statuts dans la colonne
@@ -163,6 +167,33 @@ ou chèques non déposés. Les cases globales sont exclusives et couvrent toutes
 pages ; les cases individuelles ajustent ce choix et l’état partiel est exposé.
 Changer de type remplace la sélection précédente. Carte, virement et paiements
 déjà déposés ne sont pas sélectionnables. La sélection seule ne modifie aucun dépôt.
+Déposer ouvre l’aperçu A4 du bordereau, inspiré de GreenDesk (lecture seule de la
+référence), avec noms, dates, numéros de chèques, montants, total et nom du cabinet configuré. Aucun contexte
+société. Le nom du cabinet est projeté seul depuis Settings, sans exiger
+settings.read ; un nom absent bloque la préparation (422). Le numéro est affiché
+uniquement sur les bordereaux de chèques, avec un tiret s’il est absent.
+Le bouton Déposer est sur la ligne des cases de sélection, aligné à droite.
+POST /payments/deposits/preview résout toute la sélection, toutes pages,
+par type et exclusions ou UUID explicites (5 000 maximum, aucun tronquage).
+POST /payments/deposits valide les UUID et versions exacts du bordereau, avec
+Idempotency-Key, avant window.print. Les deux services exigent payments.read et
+payments.deposit, session, origine et CSRF. Le second verrouille et valide tout le
+lot avant mutation ; dépôts, audits minimaux et idempotence partagent le commit.
+Un conflit refuse tout le lot. Les nouveaux paiements créés après l’aperçu ne
+sont pas ajoutés au bordereau. Aucune donnée personnelle n’est persistée côté
+navigateur. L’impression native avant validation affiche uniquement une consigne.
+Le navigateur ne confirme pas la sortie papier : annuler sa boîte d’impression
+ne revient pas sur le dépôt ; l’utilisateur peut annuler ce dernier dans la liste.
+Les paiements déposés affichent une coche dans le vert du thème et une flèche
+d’annulation (payments.deposit), en remplacement de la case et de la corbeille.
+La réimpression du même aperçu validé ne réécrit pas les dépôts.
+À l’impression, masquer tous les enfants de body sauf le portail du bordereau,
+y compris les notifications rendues hors de root. Regrouper en bas le nombre
+de paiements puis le montant total, sans séparer ces deux lignes à la pagination.
+Placer le bandeau du cabinet, le titre et les colonnes dans thead, le pied dans
+tfoot : les groupes se répètent à chaque feuille et réservent leur propre place.
+Le récapitulatif figure dans la dernière ligne du corps, uniquement en fin de
+bordereau. Le conteneur imprimé reste en flux bloc pour permettre cette répétition.
 Une suppression recharge la première page et réinitialise la sélection.
 
 Le suivi du dépôt en banque concerne uniquement les espèces et les chèques.
@@ -269,3 +300,22 @@ labels et le champ requis, avec flèches, Home/End, saisie de lettres, Entrée,
 Tab et Échap. Le menu se ferme au clic extérieur et conserve le focus sur le
 champ après sélection. Le sélecteur natif masqué sert uniquement à la validation
 du formulaire ; la liste visible expose les rôles combobox, listbox et option.
+
+## Annulation groupée des dépôts
+
+La page Déposer propose Annuler les dépôts à côté de Déposer, selon payments.deposit.
+Le type sélectionné définit la portée : tous les dépôts de ce type, toutes pages,
+indépendamment des cases individuelles de paiements à déposer. GET
+/payments/deposits/cancellable?method=cash|cheque expose uniquement les UUID et
+versions des dépôts concernés (5 000 maximum, refus sans tronquage au-delà).
+Un tableau vide désactive le bouton. Le chargement, une erreur ou l’absence de
+type le désactivent également. La confirmation précise type, nombre et portée.
+POST /payments/deposits/cancel exige confirmed=true, method, les UUID et versions
+exactes et Idempotency-Key. Les deux services exigent payments.read et
+payments.deposit ; la mutation exige aussi origine et CSRF. Le verrou commun
+sérialise les écritures, le service relit tous les dépôts du type et refuse 409
+si l’ensemble ou les versions ont changé ; aucun dépôt entraîne 422. Chaque
+dépôt annulé incrémente sa version et reçoit un audit minimal unmark dans le même
+commit que l’idempotence. Aucun montant, date ou autre moyen ne change. Les
+couleurs sont warning, comme pour l’annulation individuelle, et la liste ainsi
+que les dépôts annulables sont rechargés après l’action ou un conflit.

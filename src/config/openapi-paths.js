@@ -53,6 +53,10 @@ export function responseSchema(action) {
     return ref('CalendarSettings');
   if (action === 'paymentDelete') return ref('PaymentDeleted');
   if (action === 'patientPayments') return ref('PatientPayments');
+  if (action === 'paymentDepositsCancellable') return ref('CancellableDeposits');
+  if (action === 'paymentDepositsCancel') return ref('CancelledDeposits');
+  if (action === 'paymentDepositPreview') return ref('PaymentDepositPreview');
+  if (action === 'paymentDepositBatch') return ref('PaymentDepositBatch');
   if (action === 'paymentsSummary') return ref('PaymentSummary');
   if (action === 'paymentsList') return ref('Payments');
   if (action === 'paymentPatients') return paginated('PaymentPatient');
@@ -192,6 +196,12 @@ for (const route of routes) {
     operationId: route.action,
     summary: route.summary,
     'x-permission': route.permission || null,
+    ...(route.action === 'paymentDepositPreview'
+      ? {
+          description:
+            'Bordereau au nom du cabinet configuré, avec numéro de chèque nullable par ligne. Seul le nom est lu dans le paramétrage, sans exiger settings.read. Un nom absent est refusé (422).',
+        }
+      : {}),
     ...(route.action === 'paymentsCreate'
       ? {
           description:

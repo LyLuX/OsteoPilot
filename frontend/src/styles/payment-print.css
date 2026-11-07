@@ -1,0 +1,177 @@
+.deposit-printable {
+  display: none;
+}
+.deposit-print-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.deposit-print-preview {
+  max-width: 210mm;
+  margin-inline: auto;
+}
+.deposit-print-sheet {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1.25rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.deposit-print-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 2cm;
+  padding: 0.5rem;
+  margin-bottom: 1.25rem;
+  color: var(--surface);
+  background: var(--brand-forest);
+  border-bottom: 3px solid var(--accent-amber);
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.deposit-print-header span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.deposit-print-header img {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-radius: 0.3rem;
+}
+.deposit-print-heading {
+  border-left: 4px solid var(--brand-forest);
+  padding-left: 0.75rem;
+  margin-bottom: 1rem;
+}
+.deposit-print-heading p {
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+.deposit-print-heading h2 {
+  margin: 0;
+}
+.deposit-print-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 0.9rem;
+}
+.deposit-print-table th,
+.deposit-print-table td {
+  padding: 0.65rem 0.3rem;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+.deposit-print-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.deposit-print-table th:last-child,
+.deposit-print-table td:last-child {
+  text-align: right;
+}
+.deposit-print-table td.deposit-print-masthead-cell,
+.deposit-print-table td.deposit-print-summary-cell,
+.deposit-print-table td.deposit-print-footer-cell {
+  padding: 0;
+  border-bottom: 0;
+  text-align: left;
+}
+.deposit-print-count,
+.deposit-print-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.deposit-print-count {
+  margin-bottom: 0.5rem;
+}
+.deposit-print-summary {
+  margin-top: 1.5rem;
+  padding-block: 1rem;
+  border-top: 2px solid var(--brand-forest);
+  break-inside: avoid;
+}
+.deposit-print-footer {
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 8mm;
+  }
+  html,
+  body {
+    height: auto;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: var(--surface);
+  }
+  body:has(> .deposit-printable) > :not(.deposit-printable) {
+    display: none !important;
+  }
+  .deposit-printable {
+    display: block;
+    color: var(--ink);
+    background: var(--surface);
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .deposit-print-sheet {
+    display: block;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .deposit-print-header {
+    margin-bottom: 5mm;
+    padding: 2mm 5mm;
+    border-bottom-width: 0.8mm;
+  }
+  .deposit-print-header img {
+    width: 13.5mm;
+    height: 13.5mm;
+  }
+  .deposit-print-heading {
+    break-inside: avoid;
+  }
+  .deposit-print-table {
+    font-size: 9.5pt;
+  }
+  .deposit-print-table thead {
+    display: table-header-group;
+    break-inside: avoid;
+  }
+  .deposit-print-table tfoot {
+    display: table-footer-group;
+    break-inside: avoid;
+  }
+  .deposit-print-table tr {
+    break-inside: avoid;
+  }
+  .deposit-print-table th {
+    font-size: 7.5pt;
+  }
+  .deposit-print-summary {
+    margin-top: 5mm;
+    padding-top: 5mm;
+  }
+  .deposit-print-footer {
+    padding-block: 2mm;
+  }
+}

@@ -72,3 +72,30 @@ export const publicPayment = (row) => ({
       }
     : {}),
 });
+
+export const depositBatchLimit = 5000;
+const distinctIds = (ids) => new Set(ids).size === ids.length;
+export const paymentDepositSelection = z
+  .object({
+    method: z.enum(depositMethods),
+    all: z.boolean(),
+    ids: z.array(uuid).max(depositBatchLimit).refine(distinctIds),
+    excluded: z.array(uuid).max(depositBatchLimit).refine(distinctIds),
+  })
+  .strict()
+  .refine((value) =>
+    value.all ? value.ids.length === 0 : value.ids.length > 0 && value.excluded.length === 0,
+  );
+export const paymentDepositBatch = z
+  .object({
+    method: z.enum(depositMethods),
+    items: z
+      .array(z.object({ id: uuid, version: z.number().int().min(1).max(4294967294) }).strict())
+      .min(1)
+      .max(depositBatchLimit)
+      .refine((items) => distinctIds(items.map((item) => item.id))),
+  })
+  .strict();
+
+export const paymentDepositCancelQuery = z.object({ method: z.enum(depositMethods) }).strict();
+export const paymentDepositCancelInput = paymentDepositBatch.extend({ confirmed: z.literal(true) });
