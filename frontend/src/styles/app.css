@@ -340,6 +340,9 @@ a {
 .form-check-input {
   border-color: var(--control-border);
 }
+.form-check-input:not(:disabled) {
+  cursor: pointer;
+}
 .form-check-input:checked,
 .form-check-input:indeterminate {
   background-color: var(--brand-forest);
@@ -1505,6 +1508,18 @@ dialog::backdrop {
     grid-column: 2 / span 2;
   }
 }
+@media (min-width: 1200px) {
+  .tariffs-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    max-width: 96rem;
+  }
+  .tariffs-grid > form:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+  .tariffs-grid > form:last-child:nth-child(3n + 1) {
+    grid-column: 3 / span 2;
+  }
+}
 .tariff-form legend {
   overflow-wrap: anywhere;
   font-size: 1rem;
@@ -1640,7 +1655,13 @@ dialog::backdrop {
 .payment-deposits-table {
   --payment-action-size: 44px;
 }
+.payment-deposits-table .payment-selection-option {
+  justify-content: center;
+}
 @media (min-width: 768px) {
+  .payment-deposits-table .payment-selection-column {
+    text-align: center;
+  }
   .payment-deposits-table .payment-selection-column,
   .payment-deposits-table .payment-actions-column {
     width: 6rem;

@@ -69,7 +69,7 @@ function TariffForm({ tariff, onSaved }) {
             type="submit"
             className={'btn ' + (tariff ? 'btn-outline-warning' : 'btn-outline-success')}
           >
-            {tariff ? 'Enregistrer ce tarif' : 'Ajouter le tarif'}
+            {tariff ? 'Modifier' : 'Ajouter ce tarif'}
           </button>
         )}
       </fieldset>

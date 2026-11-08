@@ -33,9 +33,23 @@ export default function PatientDetailPage() {
         <ResourceState resource={resource} />
         {p && (
           <>
-            <h2>
-              {p.lastName} {p.firstName}
-            </h2>
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
+              <h2 className="mb-0 mw-100 text-break">
+                {p.lastName} {p.firstName}
+              </h2>
+              <div className="actions mt-0 ms-auto justify-content-end">
+                {can('patients.update') && (
+                  <Link className="btn btn-outline-warning" to={'/patients/' + id + '/edit'}>
+                    Modifier
+                  </Link>
+                )}
+                {can('patients.archive') && !p.archived && (
+                  <button className="btn btn-outline-danger" onClick={() => setConfirm(true)}>
+                    Archiver
+                  </button>
+                )}
+              </div>
+            </div>
             <span className="status-badge">{p.archived ? 'Archivé' : 'Actif'}</span>
             <DetailTabs
               id={tabId}
@@ -61,18 +75,6 @@ export default function PatientDetailPage() {
                 <dt>Adresse</dt>
                 <dd>{p.address || 'Non renseignée'}</dd>
               </dl>
-              <div className="actions">
-                {can('patients.update') && (
-                  <Link className="btn btn-outline-warning" to={'/patients/' + id + '/edit'}>
-                    Modifier
-                  </Link>
-                )}
-                {can('patients.archive') && !p.archived && (
-                  <button className="btn btn-outline-danger" onClick={() => setConfirm(true)}>
-                    Archiver
-                  </button>
-                )}
-              </div>
             </div>
             {can('payments.read') && (
               <div

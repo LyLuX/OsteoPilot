@@ -406,11 +406,13 @@ renvoie 404. La migration 009 n’est pas rejouée lors d’une suppression.
 
 ## Présentation des tarifs et cases à cocher
 
-Dans le paramétrage, tarifs-grid dispose les formulaires sur une colonne avant
-992 px puis deux par ligne, avec le dernier centré si le nombre est impair.
-Le formulaire d’ajout suit la même disposition. Conserver des formulaires
-indépendants, les brouillons et les états de validation de chaque tarif.
-La largeur totale reste limitée à 64rem et les libellés longs peuvent se replier.
+Dans le paramétrage, tariffs-grid dispose les formulaires sur une colonne avant
+992 px, deux par ligne à partir de 992 px et trois à partir de 1200 px. Un dernier
+formulaire isolé reste centré. Le formulaire d’ajout suit la même disposition.
+Conserver des formulaires indépendants, les brouillons et les états de validation
+de chaque tarif. La largeur totale reste limitée à 64rem, puis à 96rem à partir
+de 1200 px ; les libellés longs peuvent se replier. Les boutons portent les
+libellés Modifier pour un tarif existant et Ajouter ce tarif pour la création.
 Les libellés check-label ont une hauteur minimale de 30 px, à la demande du
 propriétaire ; les dimensions des cases elles-mêmes restent définies séparément.
 

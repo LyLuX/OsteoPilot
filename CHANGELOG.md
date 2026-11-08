@@ -2,6 +2,25 @@
 
 ## Non publié
 
+## 0.12.2 - 2026-11-08
+
+- [PATCH] Les cartes des tarifs sont affichées trois par ligne sur grand écran.
+  Leurs boutons portent les libellés Modifier et Ajouter ce tarif.
+
+- [PATCH] Les actions Modifier et Archiver de la fiche patient sont alignées
+  à droite du nom, avec retour à la ligne sur les petits écrans.
+
+- [PATCH] Les cases à cocher activables affichent un curseur de main au survol
+  pour rendre leur caractère cliquable explicite.
+
+- [PATCH] Les cases à cocher et les coches de la colonne Déposer sont centrées
+  sur le même axe, avec des cibles tactiles de 44 px conservées.
+
+- [PATCH] Les paiements de la fiche patient reprennent le tableau de gestion
+  des paiements (date, type avec icône, montant et statut du dépôt), sans
+  sélection ni action, y compris avec tous les droits. Le dépôt reste réservé
+  au parcours /payments/deposit.
+
 ## 0.12.1 - 2026-11-07
 
 - [PATCH] Tout nouveau dépôt passe exclusivement par Gestion paiements et son

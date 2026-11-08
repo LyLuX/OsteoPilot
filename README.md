@@ -1,6 +1,6 @@
 # OsteoPilot
 
-OsteoPilot **0.12.1** gère la patientèle d’un cabinet unique : connexion,
+OsteoPilot **0.12.2** gère la patientèle d’un cabinet unique : connexion,
 calendrier mensuel des paiements, coordonnées administratives des patients,
 import/export CSV, utilisateurs, rôles, permissions, paramètres et historique.
 

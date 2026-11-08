@@ -2,8 +2,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { usePagination, useResource, ResourceState, Pagination } from '../components/shared.jsx';
 import { paymentMethods, formatMoney } from '../payments/money.js';
 import PaymentMethodIcon from '../payments/PaymentMethodIcon.jsx';
-import PaymentDepositControl from '../payments/PaymentDepositControl.jsx';
-import PaymentDeleteControl from '../payments/PaymentDeleteControl.jsx';
+import PaymentDepositBadge from '../payments/PaymentDepositBadge.jsx';
 export default function PatientPayments({ id }) {
   const { can } = useAuth();
   const { page, setPage, limit, setLimit } = usePagination(5);
@@ -12,10 +11,6 @@ export default function PatientPayments({ id }) {
     { page, limit },
     can('payments.read'),
   );
-  const refresh = () => {
-    setPage(1);
-    resource.reload();
-  };
   if (!can('payments.read')) return null;
   return (
     <>
@@ -44,33 +39,40 @@ export default function PatientPayments({ id }) {
           {resource.data.items.length === 0 ? (
             <p className="muted">Aucun paiement enregistré pour ce patient.</p>
           ) : (
-            <ul className="payment-list" aria-label="Paiements du patient">
-              {resource.data.items.map((payment) => (
-                <li key={payment.id}>
-                  <div className="payment-row-heading">
-                    <div>
-                      <strong>{payment.date.split('-').reverse().join('/')}</strong>
-                      <span className="muted d-block">
-                        {paymentMethods.find((method) => method.code === payment.method)?.label}
+            <table className="data-table payment-deposits-table">
+              <caption className="visually-hidden">Paiements du patient</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Type de paiement</th>
+                  <th scope="col">Montant</th>
+                  <th scope="col">Dépôt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resource.data.items.map((payment) => (
+                  <tr key={payment.id}>
+                    <td data-label="Date">{payment.date.split('-').reverse().join('/')}</td>
+                    <td data-label="Type de paiement">
+                      <span className="payment-method-label">
+                        <PaymentMethodIcon method={payment.method} />
+                        <span>
+                          {paymentMethods.find((method) => method.code === payment.method)?.label}
+                        </span>
                       </span>
-                    </div>
-                    <div className="payment-row-actions">
-                      <strong>{formatMoney(payment.amountCents)}</strong>
-                      <PaymentDeleteControl
-                        payment={payment}
-                        canDelete={can('payments.delete')}
-                        onDeleted={refresh}
-                      />
-                    </div>
-                  </div>
-                  <PaymentDepositControl
-                    payment={payment}
-                    canUpdate={payment.bankDeposited && can('payments.deposit.cancel')}
-                    onSaved={resource.reload}
-                  />
-                </li>
-              ))}
-            </ul>
+                    </td>
+                    <td data-label="Montant">{formatMoney(payment.amountCents)}</td>
+                    <td data-label="Dépôt">
+                      {payment.method === 'card' ? (
+                        'Sans objet'
+                      ) : (
+                        <PaymentDepositBadge payment={payment} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
           <Pagination
             data={resource.data.pagination}

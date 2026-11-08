@@ -97,15 +97,6 @@ test('droit de lecture absent : onglet et requête de paiements absents', async 
     expect.anything(),
   );
 });
-test('suppression dans la fiche : rechargement du total et état vide sans données périmées', async () => {
-  show();
-  fireEvent.click(await screen.findByRole('tab', { name: 'Paiements' }));
-  fireEvent.click(await screen.findByRole('button', { name: /Supprimer le paiement/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
-  await screen.findByText('Aucun paiement enregistré pour ce patient.');
-  expect(screen.getByRole('tabpanel', { name: 'Paiements' })).toHaveTextContent('Total : 0');
-  expect(screen.queryByText('03/11/2026')).not.toBeInTheDocument();
-});
 test('lecture seule : récapitulatif sans suppression', async () => {
   mocks.can.mockImplementation((permission) =>
     ['patients.read', 'payments.read'].includes(permission),
@@ -126,33 +117,38 @@ test('rechargement en erreur : aucun ancien total visible, nouvelle tentative pr
   expect(screen.getByRole('tabpanel', { name: 'Paiements' })).not.toHaveTextContent('Total :');
 });
 
-test.each([
-  ['payments.deposit', null, 'Annuler le dépôt'],
-  ['payments.deposit.cancel', 'Annuler le dépôt', 'Déposer'],
-])(
-  'fiche patient : permission %s distincte pour chaque sens de changement du dépôt',
-  async (permission, visible, absent) => {
-    mocks.can.mockImplementation((name) =>
-      ['patients.read', 'payments.read', permission].includes(name),
-    );
-    const get = mocks.get.getMockImplementation();
-    mocks.get.mockImplementation(async (path) => {
-      const result = await get(path);
-      return path.endsWith('/payments')
-        ? {
-            ...result,
-            items: [
-              { ...payment, id: 'pending', method: 'cash', bankDeposited: false },
-              { ...payment, id: 'deposited', method: 'cash', bankDeposited: true },
-            ],
-          }
-        : result;
-    });
-    show();
-    fireEvent.click(await screen.findByRole('tab', { name: 'Paiements' }));
-    await screen.findByRole('list', { name: 'Paiements du patient' });
-    if (visible) expect(screen.getByRole('button', { name: visible })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Déposer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: absent })).not.toBeInTheDocument();
-  },
-);
+test('tableau des paiements toujours consultatif, même avec tous les droits', async () => {
+  mocks.can.mockReturnValue(true);
+  const get = mocks.get.getMockImplementation();
+  mocks.get.mockImplementation(async (path) => {
+    const result = await get(path);
+    return path.endsWith('/payments')
+      ? {
+          ...result,
+          items: [
+            { ...payment, id: 'pending', method: 'cheque', bankDeposited: false },
+            { ...payment, id: 'deposited', method: 'cash', bankDeposited: true },
+            { ...payment, id: 'transfer', method: 'transfer', bankDeposited: null },
+            payment,
+          ],
+        }
+      : result;
+  });
+  show();
+  fireEvent.click(await screen.findByRole('tab', { name: 'Paiements' }));
+  const table = await screen.findByRole('table', { name: 'Paiements du patient' });
+  expect(table).toHaveClass('data-table', 'payment-deposits-table');
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .map((cell) => cell.textContent),
+  ).toEqual(['Date', 'Type de paiement', 'Montant', 'Dépôt']);
+  expect(within(table).getAllByRole('row')).toHaveLength(5);
+  for (const label of ['À déposer', 'Déposé', 'Sur le compte', 'Sans objet']) {
+    expect(within(table).getByText(label)).toBeInTheDocument();
+  }
+  expect(within(table).queryByRole('button')).not.toBeInTheDocument();
+  expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(within(table).queryByRole('link')).not.toBeInTheDocument();
+  expect(mocks.remove).not.toHaveBeenCalled();
+});

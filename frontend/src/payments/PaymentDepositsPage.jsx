@@ -251,7 +251,7 @@ export default function PaymentDepositsPage() {
                 <tbody>
                   {resource.data.items.map((payment) => (
                     <tr key={payment.id}>
-                      <td data-label="Déposer">
+                      <td data-label="Déposer" className="payment-selection-column">
                         {payment.method === 'transfer' ||
                         (['cash', 'cheque'].includes(payment.method) && payment.bankDeposited) ? (
                           <span

@@ -253,7 +253,7 @@ test('tarifs : deux prix initiaux, modification et ajout indépendants des autre
   await user.type(screen.getByLabelText('Nom du cabinet *'), 'Brouillon à conserver');
   await user.clear(within(child).getByLabelText('Montant en euros *'));
   await user.type(within(child).getByLabelText('Montant en euros *'), '47,50');
-  await user.click(within(child).getByRole('button', { name: 'Enregistrer ce tarif' }));
+  await user.click(within(child).getByRole('button', { name: 'Modifier' }));
   expect(mocks.patch).toHaveBeenCalledWith('/settings/tariffs/child', {
     label: 'Consultation enfant/nourrisson',
     amountCents: 4750,
@@ -263,7 +263,7 @@ test('tarifs : deux prix initiaux, modification et ajout indépendants des autre
   const add = screen.getByRole('group', { name: 'Ajouter un tarif' });
   await user.type(within(add).getByLabelText('Libellé du tarif *'), 'Consultation longue');
   await user.type(within(add).getByLabelText('Montant en euros *'), '70');
-  await user.click(within(add).getByRole('button', { name: 'Ajouter le tarif' }));
+  await user.click(within(add).getByRole('button', { name: 'Ajouter ce tarif' }));
   expect(mocks.post).toHaveBeenCalledWith('/settings/tariffs', {
     label: 'Consultation longue',
     amountCents: 7000,
@@ -299,7 +299,7 @@ test('tarifs : erreur serveur visible sans perdre la saisie', async () => {
   const add = await screen.findByRole('group', { name: 'Ajouter un tarif' });
   await user.type(within(add).getByLabelText('Libellé du tarif *'), 'Consultation adulte');
   await user.type(within(add).getByLabelText('Montant en euros *'), '50');
-  await user.click(within(add).getByRole('button', { name: 'Ajouter le tarif' }));
+  await user.click(within(add).getByRole('button', { name: 'Ajouter ce tarif' }));
   expect(await within(add).findByText('Choisissez un libellé distinct.')).toHaveClass(
     'invalid-feedback',
   );
